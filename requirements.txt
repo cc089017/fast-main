@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pymysql
+python-jose
+passlib[bcrypt]
+pydantic
+email-validator
+python-multipart        # OAuth2 form-data 지원
+python-dotenv           # .env 파일 로딩
+alembic                 # (선택) DB 마이그레이션 관리
+pytest                  # 테스트 프레임워크
+httpx                   # pytest-asyncio용 HTTP 클라이언트
