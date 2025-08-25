@@ -6,6 +6,7 @@ import SignupModal from "./components/SignupModal";
 import StrokeCenter from "./components/StrokeCenter";
 import TestCarousel from "./components/TestCarousel";
 import TopRightMenu from "./components/TopRightMenu";
+import FaceMeasure from "./components/FaceMeasure";
 
 function App() {
     const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -56,6 +57,7 @@ function App() {
                 />
                 <Route path="/stroke-center" element={<StrokeCenter />} />
                 <Route path="/test" element={<TestCarousel />} />
+                <Route path="/measure/face" element={<FaceMeasure />} />
             </Routes>
         </Router>
     );
