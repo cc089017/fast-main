@@ -3,26 +3,36 @@ import { predictFaceFrame, uploadFaceFrame } from "../api/measure";
 import {
   initFaceLandmarker,
   detectOnVideo,
+  computeBasicFeatures,
   drawSpecificPoints,
   FEATURE_POINT_INDEXES,
-  computeBasicFeatures,
 } from "../lib/faceLandmarker";
+
+/**
+ * 단순 정면 판정:
+ * - 눈 높이 차이(roll) ≤ 5% 화면 높이
+ * - 코 위치(x)와 눈 중앙 차이 ≤ 5% 화면 너비
+ * - 턱 높이는 화면 65% 근처
+ */
 
 export default function FaceMeasure() {
   const videoRef = useRef(null);
-  const canvasRef = useRef(null);
+  const overlayRef = useRef(null);
   const landmarkerRef = useRef(null);
+  const animRef = useRef(null);
 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [preview, setPreview] = useState(null); // { pred_proba, pred_label, features }
-  const [saved, setSaved] = useState(null);     // { face_id, result_text, created_at, ... }
+  const [saved, setSaved] = useState(null);
+  const [alignOK, setAlignOK] = useState(false);
 
   useEffect(() => {
+    let running = true;
     (async () => {
       try {
         const s = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user" }, audio: false
+          video: { facingMode: "user" },
+          audio: false,
         });
         if (videoRef.current) {
           videoRef.current.srcObject = s;
@@ -30,61 +40,127 @@ export default function FaceMeasure() {
         }
         landmarkerRef.current = await initFaceLandmarker();
       } catch {
-        setErr("카메라/랜드마커 초기화 실패");
+        setErr("카메라 초기화 실패");
+        return;
       }
+
+      const loop = () => {
+        if (!running) return;
+        const v = videoRef.current;
+        const c = overlayRef.current;
+        const landmarker = landmarkerRef.current;
+
+        if (!v || !c || !landmarker || !v.videoWidth || !v.videoHeight) {
+          animRef.current = requestAnimationFrame(loop);
+          return;
+        }
+
+        const w = v.videoWidth;
+        const h = v.videoHeight;
+        if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+
+        const det = detectOnVideo(landmarker, v, performance.now());
+        const lm = det?.faceLandmarks?.[0];
+        const ctx = c.getContext("2d");
+        ctx.clearRect(0, 0, w, h);
+
+        let ok = false;
+
+        if (lm) {
+          // 기준 포인트
+          const leftEye = lm[33], rightEye = lm[263], nose = lm[1], chin = lm[152];
+          if (leftEye && rightEye && nose && chin) {
+            const eyeDiff = Math.abs(leftEye.y - rightEye.y) * h;
+            const rollOk = eyeDiff < h * 0.05;
+
+            const midEyeX = (leftEye.x + rightEye.x) / 2 * w;
+            const noseX = nose.x * w;
+            const yawOk = Math.abs(noseX - midEyeX) < w * 0.05;
+
+            const chinY = chin.y * h;
+            const chinTarget = h * 0.63;
+            const chinOk = Math.abs(chinY - chinTarget) < h * 0.05;
+
+            ok = rollOk && yawOk && chinOk;
+
+            // 오버레이 그리기
+            ctx.strokeStyle = ok ? "lime" : "red";
+            ctx.setLineDash([6, 6]);
+            ctx.lineWidth = 2;
+
+            // 중앙 수직선
+            ctx.beginPath();
+            ctx.moveTo(w / 2, 0);
+            ctx.lineTo(w / 2, h);
+            ctx.stroke();
+
+            // 턱선 가이드
+            ctx.beginPath();
+            ctx.moveTo(0, chinTarget);
+            ctx.lineTo(w, chinTarget);
+            ctx.stroke();
+
+            // 상태 텍스트
+            ctx.setLineDash([]);
+            ctx.font = "18px sans-serif";
+            ctx.fillStyle = ok ? "lime" : "red";
+            ctx.fillText(ok ? "정면 OK" : "맞춰주세요", 20, 30);
+          }
+        }
+        setAlignOK(ok);
+
+        animRef.current = requestAnimationFrame(loop);
+      };
+      animRef.current = requestAnimationFrame(loop);
     })();
+
+    return () => {
+      running = false;
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+      const v = videoRef.current;
+      const stream = v?.srcObject;
+      if (stream) stream.getTracks().forEach(t => t.stop());
+    };
   }, []);
 
-  const drawGuides = (ctx, w, h) => {
-    ctx.save(); ctx.strokeStyle="rgba(255,255,255,0.9)"; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.moveTo(w/2, 0); ctx.lineTo(w/2, h); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, h*0.35); ctx.lineTo(w, h*0.35); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, h*0.65); ctx.lineTo(w, h*0.65); ctx.stroke();
-    ctx.restore();
-  };
-
+  // 캡처 & 저장 (비디오 + 점만)
   const onCapture = async () => {
-    setErr(""); setPreview(null); setSaved(null);
+    setErr("");
+    setSaved(null);
 
-    const v = videoRef.current, c = canvasRef.current, landmarker = landmarkerRef.current;
-    if (!v || !c || !landmarker) return;
+    const v = videoRef.current;
+    const landmarker = landmarkerRef.current;
+    if (!v || !landmarker) return;
 
     const w = v.videoWidth, h = v.videoHeight;
-    c.width = w; c.height = h;
-    const ctx = c.getContext("2d");
-
-    // 배경 프레임 (표시용 미러)
-    ctx.save(); ctx.translate(w,0); ctx.scale(-1,1); ctx.drawImage(v,0,0,w,h); ctx.restore();
-    drawGuides(ctx, w, h);
-
-    // 랜드마크
     const det = detectOnVideo(landmarker, v, performance.now());
-    if (!det?.faceLandmarks?.length) { setErr("얼굴을 인식하지 못했습니다."); return; }
+    if (!det?.faceLandmarks?.length) { setErr("얼굴 인식 실패"); return; }
     const lm = det.faceLandmarks[0];
-
-    // 점찍기(미러로 표시)
-    drawSpecificPoints(ctx, lm, w, h, FEATURE_POINT_INDEXES, { mirror: true, radius: 1.5 });
-
-    // 특징치(원본 좌표계 기반) — 저장용 result_text 생성에 사용됨
     const features = computeBasicFeatures(lm);
+
+    const off = document.createElement("canvas");
+    off.width = w; off.height = h;
+    const octx = off.getContext("2d");
+
+    octx.save();
+    octx.translate(w, 0);
+    octx.scale(-1, 1);
+    octx.drawImage(v, 0, 0, w, h);
+    octx.restore();
+
+    drawSpecificPoints(octx, lm, w, h, FEATURE_POINT_INDEXES, { mirror: true, radius: 1.5 });
 
     setBusy(true);
     try {
-      const blob = await new Promise((res) => c.toBlob(res, "image/jpeg", 0.9));
-      if (!blob) throw new Error("캔버스 이미지 생성 실패");
-
-      // ① 예측 전용 호출 → 화면 즉시 표시
-      const pred = await predictFaceFrame(blob); // { pred_proba, pred_label, features }
-      setPreview(pred);
-
-      // ② 저장 호출 → DB 저장 및 result_text 수신/표시
+      const blob = await new Promise(res => off.toBlob(res, "image/jpeg", 0.9));
+      const pred = await predictFaceFrame(blob);
       const savedRec = await uploadFaceFrame(blob, {
         predLabel: Number(pred?.pred_label),
-        features, // 서버가 부위명 이유문장 만들 수 있게
+        features,
       });
       setSaved(savedRec);
     } catch (e) {
-      setErr(e?.response?.data?.detail || e.message || "업로드/예측 실패");
+      setErr("업로드/예측 실패");
     } finally {
       setBusy(false);
     }
@@ -93,54 +169,43 @@ export default function FaceMeasure() {
   return (
     <div className="w-full min-h-screen flex flex-col items-center px-6 py-10">
       <h1 className="text-3xl font-extrabold mb-6">F.A.S.T — Face 측정</h1>
+
       <div className="grid md:grid-cols-2 gap-8 w-full max-w-6xl">
-        {/* 좌측: 카메라/캡처 */}
         <div className="space-y-4">
-          <video ref={videoRef} className="w-full rounded-2xl shadow" muted playsInline />
-          <canvas ref={canvasRef} className="w-full rounded-2xl shadow" />
+          <div className="relative w-full rounded-2xl overflow-hidden shadow">
+            <video
+              ref={videoRef}
+              className="w-full block"
+              style={{ transform: "scaleX(-1)" }}
+              muted
+              playsInline
+            />
+            <canvas ref={overlayRef} className="absolute inset-0 w-full h-full" />
+          </div>
+
           <button
             onClick={onCapture}
-            disabled={busy}
-            className="px-6 py-3 rounded-2xl bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50"
+            disabled={busy || !alignOK}
+            className={`px-6 py-3 rounded-2xl text-white font-semibold disabled:opacity-60 ${
+              alignOK ? "bg-emerald-600 hover:bg-emerald-700" : "bg-blue-600 hover:bg-blue-700"
+            }`}
           >
-            {busy ? "처리 중..." : "측정/예측/저장"}
+            {busy ? "처리 중..." : (alignOK ? "정면 OK — 측정/저장" : "측정/저장")}
           </button>
           {err && <p className="text-red-600">{err}</p>}
         </div>
 
-        {/* 우측: 상단 = 모델 미리보기 / 하단 = 저장 결과 */}
         <div className="space-y-6">
-          <section className="p-5 rounded-2xl border shadow bg-white">
-            <h2 className="text-lg font-bold mb-2">모델 미리보기 (저장 안 함)</h2>
-            {!preview ? (
-              <p className="text-gray-500">측정 후 바로 예측 결과가 표시됩니다.</p>
-            ) : (
-              <>
-                <div className="text-sm space-y-1">
-                  <div><b>확률(1):</b> {Number(preview.pred_proba).toFixed(3)}</div>
-                  <div><b>판정:</b> {Number(preview.pred_label) === 1 ? "비정상(의심)" : "정상"}</div>
-                </div>
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-blue-600">미리보기 features</summary>
-                  <pre className="text-xs bg-gray-50 p-3 rounded-lg overflow-x-auto">
-                    {JSON.stringify(preview.features, null, 2)}
-                  </pre>
-                </details>
-              </>
-            )}
-          </section>
-
-          <section className="p-5 rounded-2xl border shadow bg-white">
-            <h2 className="text-lg font-bold mb-2">저장 결과 (DB)</h2>
+          <section className="p-4 rounded-2xl border shadow-sm">
+            <h2 className="text-xl font-bold mb-2">저장 (DB)</h2>
             {!saved ? (
-              <p className="text-gray-500">저장 후 결과문이 표시됩니다.</p>
+              <p className="text-gray-500">아직 저장된 결과가 없습니다.</p>
             ) : (
               <>
-                <p className="text-base leading-relaxed whitespace-pre-line">
-                  {saved.result_text}
-                </p>
+                <p className="text-base leading-relaxed whitespace-pre-line">{saved.result_text}</p>
                 <p className="text-xs text-gray-500 mt-2">
-                  face_id: {saved.face_id}{saved.created_at ? ` · ${new Date(saved.created_at).toLocaleString()}` : ""}
+                  face_id: {saved.face_id}
+                  {saved.created_at ? ` · ${new Date(saved.created_at).toLocaleString()}` : ""}
                 </p>
               </>
             )}
