@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Carousel from "./components/Carousel";
 import LoginModal from "./components/LoginModal";
@@ -7,11 +7,29 @@ import StrokeCenter from "./components/StrokeCenter";
 import TestCarousel from "./components/TestCarousel";
 import TopRightMenu from "./components/TopRightMenu";
 import FaceMeasure from "./components/FaceMeasure";
+import http from "./lib/http";
 
 function App() {
     const [isLoginOpen, setIsLoginOpen] = useState(false);
     const [isSignupOpen, setIsSignupOpen] = useState(false);
-    const [isLoggedIn, setIsLoggedIn] = useState(false); // 로그인 상태 추가
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [loading, setLoading] = useState(true);
+
+    // ★ 앱 시작 시 쿠키로 세션 상태 동기화
+    useEffect(() => {
+        (async () => {
+            try {
+                await http.get("/api/v1/auth/me");
+                setIsLoggedIn(true);
+            } catch {
+                setIsLoggedIn(false);
+            } finally {
+                setLoading(false);
+            }
+        })();
+    }, []);
+
+    if (loading) return <div />;
 
     return (
         <Router>
