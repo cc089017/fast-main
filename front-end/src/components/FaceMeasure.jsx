@@ -166,6 +166,46 @@ export default function FaceMeasure() {
     }
   };
 
+  // ---- 결과 표시 전용 유틸 (UI 폴백 포함) ----
+  const renderResultBlock = () => {
+    if (!saved) {
+      return <p className="text-gray-500">아직 저장된 결과가 없습니다.</p>;
+    }
+
+    // 1순위: 서버가 내려준 설명 포함 결과
+    const rich = saved.result_text && String(saved.result_text).trim().length > 0
+      ? String(saved.result_text)
+      : null;
+
+    // 2순위: 간단 라벨/숫자로 구성된 폴백(정상/비정상)
+    // 서버 필드가 케이스마다 다를 수 있어 최대한 포괄적으로 커버
+    const shortLabel =
+      saved.pred_label ?? saved.label ?? saved.result_label ?? saved.result ?? null;
+
+    const shortText =
+      typeof shortLabel !== "undefined" && shortLabel !== null
+        ? (Number(shortLabel) === 1 ? "비정상" : (Number(shortLabel) === 0 ? "정상" : String(shortLabel)))
+        : null;
+
+    // 최종 표시 문자열
+    const display = rich ?? shortText ?? "결과 텍스트가 없습니다.";
+
+    return (
+      <>
+        {/* 결과 본문 */}
+        <p className="text-base leading-relaxed whitespace-pre-line">
+          {display}
+        </p>
+
+        {/* 메타라인 */}
+        <p className="text-xs text-gray-500 mt-2">
+          {typeof saved.face_id !== "undefined" && saved.face_id !== null ? `face_id: ${saved.face_id}` : ""}
+          {saved.created_at ? ` · ${new Date(saved.created_at).toLocaleString()}` : ""}
+        </p>
+      </>
+    );
+  };
+
   return (
     <div className="w-full min-h-screen flex flex-col items-center px-6 py-10">
       <h1 className="text-3xl font-extrabold mb-6">F.A.S.T — Face 측정</h1>
@@ -198,17 +238,7 @@ export default function FaceMeasure() {
         <div className="space-y-6">
           <section className="p-4 rounded-2xl border shadow-sm">
             <h2 className="text-xl font-bold mb-2">저장 (DB)</h2>
-            {!saved ? (
-              <p className="text-gray-500">아직 저장된 결과가 없습니다.</p>
-            ) : (
-              <>
-                <p className="text-base leading-relaxed whitespace-pre-line">{saved.result_text}</p>
-                <p className="text-xs text-gray-500 mt-2">
-                  face_id: {saved.face_id}
-                  {saved.created_at ? ` · ${new Date(saved.created_at).toLocaleString()}` : ""}
-                </p>
-              </>
-            )}
+            {renderResultBlock()}
           </section>
         </div>
       </div>
