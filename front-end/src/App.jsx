@@ -7,6 +7,7 @@ import StrokeCenter from "./components/StrokeCenter";
 import TestCarousel from "./components/TestCarousel";
 import TopRightMenu from "./components/TopRightMenu";
 import FaceMeasure from "./components/FaceMeasure";
+import ArmMeasure from "./components/ArmMeasure.jsx";
 import http from "./lib/http";
 
 function App() {
@@ -76,6 +77,7 @@ function App() {
                 <Route path="/stroke-center" element={<StrokeCenter />} />
                 <Route path="/test" element={<TestCarousel />} />
                 <Route path="/measure/face" element={<FaceMeasure />} />
+                <Route path="/measure/arm" element={<ArmMeasure />} />
             </Routes>
         </Router>
     );
