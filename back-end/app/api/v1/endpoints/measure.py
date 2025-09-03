@@ -94,3 +94,4 @@ async def upload_face_and_save(
         landmarks_json=features,
     )
     return FaceOut.from_orm(rec)  # pydantic v1
+ 

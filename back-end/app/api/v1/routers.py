@@ -2,6 +2,7 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import auth, measure, face  # face 모듈 쓰는 경우 포함
 
+
 api_router = APIRouter()
 
 # /api/v1/auth/...

@@ -10,7 +10,7 @@ def create_face(
     image_bytes: bytes,
     image_mime: str,
     image_size: Optional[int],
-    result_text: str,
+    result_text: str, 
     landmarks_json: Optional[Dict[str, Any]] = None,
 ) -> Face:
     face = Face(

@@ -61,14 +61,17 @@ def extract_features_from_two_images(start_bytes: bytes, end_bytes: bytes) -> Di
         diff = abs(e - s)
         # 첫 5개 랜드마크 y 변화량
         def y_deltas():
+            TIP_IDX = [4, 8, 12, 16, 20]  # thumb, index, middle, ring, pinky (tip)
             out = []
-            for i in range(5):
-                if s_xy.get(hand) is None or e_xy.get(hand) is None:
+            s_hand = s_xy.get(hand)
+            e_hand = e_xy.get(hand)
+            for idx in TIP_IDX:
+                if s_hand is None or e_hand is None:
                     out.append(0.0)
                 else:
-                    out.append(float(e_xy[hand][i][1] - s_xy[hand][i][1]))
+                    # 이미지 좌표계에서 y는 아래로 증가 → 아래로 내려가면 +값
+                    out.append(float(e_hand[idx][1] - s_hand[idx][1]))
             return out
-        return s, e, diff, y_deltas()
 
     ls, le, ld, ly = hand_feats("Left")
     rs, re, rd, ry = hand_feats("Right")

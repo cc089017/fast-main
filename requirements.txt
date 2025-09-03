@@ -19,6 +19,8 @@ pytorch-tabnet==4.1.0
 torch>=2.2.0
 scikit-learn>=1.3
 pandas>=2.0
+xgboost>=2.0
+
 
 
 
