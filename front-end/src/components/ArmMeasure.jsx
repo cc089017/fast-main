@@ -240,29 +240,14 @@ export default function ArmMeasure() {
   }, []);
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gap: 16,
-        gridTemplateColumns: "1fr 1fr",
-        alignItems: "start",
-      }}
-    >
-      {/* 좌: 비디오 & 가이드 박스 */}
-      <section
-        style={{
-          background: "#121833",
-          border: "1px solid #2a3566",
-          borderRadius: 12,
-          padding: 12,
-        }}
-      >
-        <h2 style={{ marginTop: 0 }}>ARM 측정 (v1)</h2>
+    <div className="w-screen h-screen flex items-center justify-center bg-white relative overflow-hidden">
+      <div className="w-[133vh] h-[133vh] rounded-full border-[7vw] border-[#f6f6f6] shadow-xl overflow-hidden flex items-center justify-center z-0 relative">
+        {/* 카메라와 가이드 박스 */}
         <div
           style={{
             position: "relative",
             width: "100%",
-            maxWidth: 640,
+            maxWidth: 850,
             aspectRatio: "16/9",
             borderRadius: 12,
             overflow: "hidden",
@@ -277,7 +262,7 @@ export default function ArmMeasure() {
               width: "100%",
               height: "100%",
               objectFit: "cover",
-              transform: "scaleX(-1)", // 화면 미러링
+              transform: "scaleX(-1)",
             }}
           />
           {/* 가이드 박스: 좌/우 */}
@@ -310,37 +295,19 @@ export default function ArmMeasure() {
             }}
           />
         </div>
-
-        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-          <button
-            onClick={run}
-            disabled={loading || startedRef.current}
-            style={{ padding: "10px 14px" }}
-          >
-            {loading || startedRef.current ? "진행 중…" : "측정 수동 시작"}
-          </button>
-        </div>
-
-        <div
-          style={{
-            marginTop: 10,
-            fontFamily: "ui-monospace,monospace",
-            fontSize: 13,
-            color: "#a9b4d4",
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          {log.join("\n") || "{ 로그 없음 }"}
-        </div>
-      </section>
-
-      {/* 우: 응답/미리보기 */}
-      <section
+      </div>
+      {/* 우측 응답/미리보기 영역 */}
+      <div
         style={{
+          position: "absolute",
+          right: 32,
+          top: 32,
+          width: 400,
           background: "#121833",
           border: "1px solid #2a3566",
           borderRadius: 12,
           padding: 12,
+          zIndex: 10,
         }}
       >
         <h2 style={{ marginTop: 0 }}>응답</h2>
@@ -354,7 +321,6 @@ export default function ArmMeasure() {
         >
           {resp ? JSON.stringify(resp, null, 2) : "{ 아직 없음 }"}
         </pre>
-
         {(img025 || img105) && (
           <div
             style={{
@@ -386,8 +352,17 @@ export default function ArmMeasure() {
             </figure>
           </div>
         )}
-      </section>
-
+        <div style={{ marginTop: 10, fontFamily: "ui-monospace,monospace", fontSize: 13, color: "#a9b4d4", whiteSpace: "pre-wrap" }}>
+          {log.join("\n") || "{ 로그 없음 }"}
+        </div>
+        <button
+          onClick={run}
+          disabled={loading || startedRef.current}
+          style={{ padding: "10px 14px", marginTop: 12 }}
+        >
+          {loading || startedRef.current ? "진행 중…" : "측정 수동 시작"}
+        </button>
+      </div>
       <canvas ref={captureCanvasRef} style={{ display: "none" }} />
     </div>
   );

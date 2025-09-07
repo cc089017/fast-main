@@ -6,7 +6,7 @@ from app.crud.arm import create_arm
 # ↓ 너의 기존 추론/전처리 유틸 그대로 사용
 from app.services.inference.arm_xgb_runner import predict_proba_and_label
 from app.services.features.arm_features import extract_features_from_two_images
-
+from app.core.security import get_user_id_from_cookie
 router = APIRouter(prefix="/api/v1/arm", tags=["arm"])
 
 @router.post("/predict")
@@ -14,6 +14,7 @@ async def predict_arm_v1(
     start_file: UploadFile = File(...),
     end_file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    user_id: str = Depends(get_user_id_from_cookie),  
 ):
     # 1) 업로드 바이트 획득
     sb = await start_file.read()
@@ -26,7 +27,6 @@ async def predict_arm_v1(
     proba, label = predict_proba_and_label(feats)
 
     # 3) DB 저장 (디스크 저장 없음)
-    user_id = None  # 로그인 연동 시 실제 user_id로 교체
     row = create_arm(
         db,
         user_id=user_id,
