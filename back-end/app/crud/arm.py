@@ -5,7 +5,7 @@ from app.models.arm import Arm  # ★ Arm으로 변경
 def create_arm(
     db: Session,
     *,
-    user_id: Optional[str],
+    user_id:str,
     start_bytes: bytes,
     start_mime: str,
     end_bytes: bytes,

@@ -7,7 +7,7 @@ class Arm(Base):
     __tablename__ = "arm"
 
     arm_id = Column(BigInteger, primary_key=True, autoincrement=True)
-    user_id = Column(String(50), ForeignKey("user.id"), nullable=True)
+    user_id = Column(String(50), ForeignKey("user.id"), nullable=False)
 
     start_image_blob = Column(LONGBLOB, nullable=False)
     start_image_mime = Column(String(64), nullable=False, default="image/jpeg")
