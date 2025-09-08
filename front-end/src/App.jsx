@@ -8,6 +8,8 @@ import TestCarousel from "./components/TestCarousel";
 import TopRightMenu from "./components/TopRightMenu";
 import FaceMeasure from "./components/FaceMeasure";
 import ArmMeasure from "./components/ArmMeasure.jsx";
+import MyResults from "./components/MyResults";
+import ResultDetail from "./components/ResultDetail";
 import http from "./lib/http";
 
 function App() {
@@ -78,6 +80,8 @@ function App() {
                 <Route path="/test" element={<TestCarousel />} />
                 <Route path="/measure/face" element={<FaceMeasure />} />
                 <Route path="/measure/arm" element={<ArmMeasure />} />
+                <Route path="/results" element={<MyResults />} />
+                <Route path="/results/:id" element={<ResultDetail />} />
             </Routes>
         </Router>
     );

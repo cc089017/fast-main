@@ -3,12 +3,12 @@ import { Menu, House } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 function TopRightMenu({
-    onLoginClick,
-    showLoginButton = true,
-    showHomeButton = true,
-    isLoggedIn,
-    setIsLoggedIn,
-}) {
+                          onLoginClick,
+                          showLoginButton = true,
+                          showHomeButton = true,
+                          isLoggedIn,
+                          setIsLoggedIn,
+                      }) {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
     const navigate = useNavigate();
@@ -69,16 +69,26 @@ function TopRightMenu({
                     role="button"
                 />
                 {isOpen && (
-                    <div className="absolute top-1/2 right-full transform -translate-y-1/2 mr-4
-                          bg-gray-100 shadow-lg rounded-xl px-6 py-4 flex items-center gap-6 w-auto max-w-max">
+                    <div
+                        className="absolute top-1/2 right-full transform -translate-y-1/2 mr-4
+                       bg-gray-100 shadow-lg rounded-xl px-6 py-4 flex items-center gap-6 w-auto max-w-max"
+                    >
                         <button
+                            onClick={() => {
+                                setIsOpen(false);      // 드롭다운 닫기
+                                navigate("/results");  // ✅ My 검사결과 페이지로 이동
+                            }}
                             className="text-2xl hover:text-blue-600 hover:font-bold transition-all whitespace-nowrap"
                             aria-label="My 검사결과 바로가기"
                         >
                             My 검사결과
                         </button>
+
                         <button
-                            onClick={() => navigate("/stroke-center")}
+                            onClick={() => {
+                                setIsOpen(false);              // 드롭다운 닫기
+                                navigate("/stroke-center");    // 뇌졸중 센터 페이지
+                            }}
                             className="text-2xl hover:text-blue-600 hover:font-bold transition-all whitespace-nowrap"
                             aria-label="뇌졸중 센터 찾기"
                         >
