@@ -50,6 +50,7 @@ function App() {
                                 onLoginClick={() => setIsLoginOpen(true)}
                                 isLoggedIn={isLoggedIn}
                                 setIsLoggedIn={setIsLoggedIn}
+                                showHomeButton={false}
                             />
                             {isLoginOpen && (
                                 <LoginModal
@@ -78,6 +79,8 @@ function App() {
                 />
                 <Route path="/stroke-center" element={<StrokeCenter />} />
                 <Route path="/test" element={<TestCarousel />} />
+                {/* [ADD] 슬라이드별 URL 지원 */}
+                <Route path="/test/:step" element={<TestCarousel />} />
                 <Route path="/measure/face" element={<FaceMeasure />} />
                 <Route path="/measure/arm" element={<ArmMeasure />} />
                 <Route path="/results" element={<MyResults />} />
