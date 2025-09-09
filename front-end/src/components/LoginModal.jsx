@@ -46,7 +46,7 @@ function LoginModal({ onClose, onSignupOpen, onLoginSuccess }) {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
       <div ref={modalRef} className="bg-white p-6 rounded-lg w-[30rem] shadow-lg">
-        <h2 className="text-2xl font-bold mb-4">로그인</h2>
+        <h2 className="text-3xl font-semibold mb-8 text-center">로그인</h2>
         <div className="space-y-3">
           <input
             type="text"

@@ -6,10 +6,19 @@ import SpeechSlide from "./SpeechSlide";
 import EndSlide from "./EndSlide";
 //import TopRightMenu from "./TopRightMenu";
 
+// [ADD] 라우팅 훅 추가
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+
 export default function TestCarousel() {
     const slides = [<FaceSlide key="face" />, <ArmSlide key="arm" />, <SpeechSlide key="speech" />, <EndSlide key="end" />];
     const [current, setCurrent] = useState(0);
     const [isAnimating, setIsAnimating] = useState(false);
+
+    // [ADD] URL <-> 슬라이드 단계 매핑
+    const STEPS = ["face", "arm", "speech", "end"];
+    const navigate = useNavigate();
+    const location = useLocation();
+    const { step } = useParams(); // face | arm | speech | end | undefined
 
     const nextSlide = () => {
         if (isAnimating || current >= slides.length - 1) return;
@@ -30,6 +39,33 @@ export default function TestCarousel() {
             setIsAnimating(false);
         }, 700);
         return () => clearTimeout(timer);
+    }, [current]); // 기존 코드 유지
+
+    // [ADD] 1) /test로만 들어오면 /test/face로 정규화
+    useEffect(() => {
+        if (location.pathname === "/test") {
+            navigate("/test/face", { replace: true });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.pathname]);
+
+    // [ADD] 2) URL이 바뀌면 슬라이드 인덱스를 맞춘다 (뒤/앞으로 가기 포함)
+    useEffect(() => {
+        const key = step ?? "face";
+        const idx = Math.max(0, STEPS.indexOf(key));
+        if (idx !== current) {
+            setCurrent(idx);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [step]);
+
+    // [ADD] 3) 슬라이드 인덱스가 내부에서 바뀌면 URL도 동기화
+    useEffect(() => {
+        const target = `/test/${STEPS[current]}`;
+        if (location.pathname !== target) {
+            navigate(target, { replace: false });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [current]);
 
     return (
