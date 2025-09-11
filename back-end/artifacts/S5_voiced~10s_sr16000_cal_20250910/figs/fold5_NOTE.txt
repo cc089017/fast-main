@@ -1,0 +1,1 @@
+Single-class validation fold. thr=0.357658
