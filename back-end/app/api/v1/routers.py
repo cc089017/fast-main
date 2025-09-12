@@ -1,6 +1,6 @@
 # back-end/app/api/v1/routers.py
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, measure, face  # face 모듈 쓰는 경우 포함
+from app.api.v1.endpoints import auth, measure, face, speech  # face, speech 모듈 쓰는 경우 포함
 
 
 api_router = APIRouter()
@@ -13,3 +13,6 @@ api_router.include_router(measure.router, prefix="/measure", tags=["measure"])
 
 # (선택) /api/v1/face/...
 api_router.include_router(face.router, prefix="/face", tags=["face"])
+
+# (선택) /api/v1/endpoints/speech
+api_router.include_router(speech.router, prefix="/endpoints/speech", tags=["speech"])

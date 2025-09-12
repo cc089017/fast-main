@@ -1,5 +1,9 @@
 // src/components/SpeechSlide.jsx
+import { useNavigate } from "react-router-dom";
+
 export default function SpeechSlide() {
+    const navigate = useNavigate();
+
     return (
         <div className="w-full h-full flex flex-col items-center justify-center text-center px-6">
             {/* 타이틀 */}
@@ -19,7 +23,7 @@ export default function SpeechSlide() {
 
                 {/* 검사 가이드 텍스트 */}
                 <div className="text-left text-3xl text-gray-800 ml-0 leading-relaxed">
-                    <p>1. 가이드라인 추가예정1</p>
+                    <p>이름, 나이, 가족 관계, 고향, 직업 등 자기소개를 해주세요.</p>
                     <p className="mt-4">2. 가이드라인 추가예정2</p>
                     <p className="mt-4">3. 가이드라인 추가예정3</p>
                 </div>
@@ -29,6 +33,7 @@ export default function SpeechSlide() {
             <button
                 className="bg-blue-600 text-white text-4xl font-normal font-sans px-7 py-4 rounded-full shadow-lg
                    hover:scale-110 hover:bg-blue-700 hover:font-semibold hover:shadow-xl transition-transform duration-300"
+                onClick={() => navigate("/speech-test")}
             >
                 검사 시작하기
             </button>

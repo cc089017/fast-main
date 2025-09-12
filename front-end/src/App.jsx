@@ -11,6 +11,7 @@ import ArmMeasure from "./components/ArmMeasure.jsx";
 import MyResults from "./components/MyResults";
 import ResultDetail from "./components/ResultDetail";
 import http from "./lib/http";
+import SpeechTestPage from "./components/SpeechTestPage";
 
 function App() {
     const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -85,6 +86,7 @@ function App() {
                 <Route path="/measure/arm" element={<ArmMeasure />} />
                 <Route path="/results" element={<MyResults />} />
                 <Route path="/results/:id" element={<ResultDetail />} />
+                <Route path="/speech-test" element={<SpeechTestPage />} />
             </Routes>
         </Router>
     );

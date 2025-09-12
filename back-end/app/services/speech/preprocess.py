@@ -2,6 +2,8 @@
 # 학습과 동일한 방식으로 16k mono, VAD, MFCC, ZCR/RMS, DTW 등 처리
 
 import io, os, numpy as np, soundfile as sf, librosa
+import tempfile
+import subprocess
 from typing import List, Tuple, Dict
 
 # 기본 파라미터 (meta.json과 일치해야 함)
@@ -13,14 +15,28 @@ def load_audio_16k(wav_or_bytes) -> np.ndarray:
     """
     bytes 또는 파일 경로를 받아 16kHz mono로 변환
     """
-    if isinstance(wav_or_bytes, (bytes, bytearray, memoryview, io.BytesIO)):
-        data, sr = sf.read(io.BytesIO(wav_or_bytes), always_2d=False)
-        if sr != SR or (data.ndim == 2 and data.shape[1] > 1):
-            y = librosa.to_mono(data.T) if data.ndim == 2 else data
-            y = librosa.resample(y.astype(np.float32), orig_sr=sr, target_sr=SR, res_type="kaiser_best")
+    # webm signature: 1A 45 DF A3
+    if isinstance(wav_or_bytes, (bytes, bytearray)):
+        # webm signature 체크
+        if wav_or_bytes[:4] == b'\x1A\x45\xDF\xA3':
+            with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as f_in:
+                f_in.write(wav_or_bytes)
+                f_in.flush()
+                webm_path = f_in.name
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f_out:
+                wav_path = f_out.name
+            # ffmpeg 변환
+            subprocess.run([
+                'ffmpeg', '-y', '-i', webm_path, '-ar', '16000', '-ac', '1', wav_path
+            ], check=True)
+            data, sr = sf.read(wav_path, always_2d=False)
+            # 파일 닫힌 뒤 삭제
+            os.unlink(webm_path)
+            os.unlink(wav_path)
+            return data
         else:
-            y = data.astype(np.float32) if data.dtype != np.float32 else data
-        return y
+            data, sr = sf.read(io.BytesIO(wav_or_bytes), always_2d=False)
+            return data
     # path-like
     y, _ = librosa.load(str(wav_or_bytes), sr=SR, mono=True, res_type="kaiser_best")
     return y.astype(np.float32)
