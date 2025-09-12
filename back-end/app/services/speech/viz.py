@@ -1,17 +1,17 @@
 # 예측 결과 시각화 - 김민규 작성
 
-import matplotlib.pyplot as plt
-import base64
-from io import BytesIO
-
 def build_explain_png(y, feats, features, extras, refs, meta, risk, theta, decision):
-    # 파형, 슬라이스, DTW, ZCR/RMS, 판정 카드 등 시각화
+    import matplotlib.pyplot as plt
+    import base64
+    from io import BytesIO
+
     fig, axs = plt.subplots(2, 2, figsize=(8, 6))
 
-    # Top-left: 파형 + 슬라이스
+    # 파형 + 슬라이스 경계선 표시
     axs[0, 0].plot(y)
-    for s, e in feats.get('edges', []):
-        axs[0, 0].axvline(s, color='r', linestyle='--')
+    slice_edges = extras.get("slice_edges", [])
+    for edge in slice_edges:
+        axs[0, 0].axvline(edge, color='r', linestyle='--')
     axs[0, 0].set_title("Voiced waveform & slices")
 
     # Top-right: DTW 5-point (dtw_slice1_mean ~ dtw_slice5_mean)

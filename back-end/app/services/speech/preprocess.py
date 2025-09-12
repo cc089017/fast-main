@@ -41,7 +41,7 @@ def load_audio_16k(wav_or_bytes) -> np.ndarray:
     y, _ = librosa.load(str(wav_or_bytes), sr=SR, mono=True, res_type="kaiser_best")
     return y.astype(np.float32)
 
-def voiced_concat(y: np.ndarray, sr: int = SR, frame_length: int = 1024, hop_length: int = 256) -> np.ndarray:
+def voiced_concat(y, sr=16000, hop_length=256, frame_length=1024):
     """
     VAD: 유성 프레임만 이어 붙이기 (≈10s 목표, 가변 길이 허용)
     """
@@ -59,7 +59,12 @@ def voiced_concat(y: np.ndarray, sr: int = SR, frame_length: int = 1024, hop_len
     if not yv_parts:
         return np.zeros(0, dtype=np.float32)
     yv = np.concatenate(yv_parts).astype(np.float32)
-    return yv
+
+    # 만약 pyin 실패 시 energy 기반 추출
+    intervals = librosa.effects.split(y, top_db=30, frame_length=frame_length, hop_length=hop_length)
+    voiced_y = np.concatenate([y[s:e] for s, e in intervals]) if intervals.size else np.array([])
+    print("유성음 길이:", len(voiced_y), "전체 길이:", len(y))  # 로그 추가
+    return voiced_y
 
 def slice_edges(L: int, S_: int = S) -> List[Tuple[int, int]]:
     """
