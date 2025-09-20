@@ -5,66 +5,78 @@ import io, os, numpy as np, soundfile as sf, librosa
 import tempfile
 import subprocess
 from typing import List, Tuple, Dict
+from fastdtw import fastdtw
+from scipy.spatial.distance import euclidean
+from typing import List
 
 # 기본 파라미터 (meta.json과 일치해야 함)
 SR = 16000          # 샘플링 레이트
 S = 5               # 슬라이스 개수
 N_MFCC = 13         # MFCC 개수
 
+MFCC_CFG = dict(
+    n_fft=1024, hop_length=256, win_length=1024, window='hann',
+    center=False, n_mels=40, fmin=50, fmax=SR//2, htk=False, norm='slaney'
+)
+
 def load_audio_16k(wav_or_bytes) -> np.ndarray:
     """
-    bytes 또는 파일 경로를 받아 16kHz mono로 변환
+    bytes 또는 파일 경로를 받아 16kHz mono로 변환 (학습과 동일)
     """
-    # webm signature: 1A 45 DF A3
-    if isinstance(wav_or_bytes, (bytes, bytearray)):
-        # webm signature 체크
-        if wav_or_bytes[:4] == b'\x1A\x45\xDF\xA3':
+    import io
+    import soundfile as sf
+    import numpy as np
+    import librosa, tempfile, subprocess, os
+
+    def _to_16k_mono(y, sr):
+        y = librosa.to_mono(y.T) if (y.ndim == 2 and y.shape[1] > 1) else (y if y.ndim==1 else y.squeeze())
+        if sr != SR:
+            y = librosa.resample(y.astype(np.float32), orig_sr=sr, target_sr=SR, res_type="kaiser_best")
+        return y.astype(np.float32)
+
+    # bytes 입력
+    if isinstance(wav_or_bytes, (bytes, bytearray, memoryview, io.BytesIO)):
+        b = wav_or_bytes if isinstance(wav_or_bytes, (bytes, bytearray, memoryview)) else wav_or_bytes.getvalue()
+        # webm 시그니처
+        if b[:4] == b'\x1A\x45\xDF\xA3':
             with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as f_in:
-                f_in.write(wav_or_bytes)
-                f_in.flush()
-                webm_path = f_in.name
+                f_in.write(b); f_in.flush(); webm_path = f_in.name
             with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f_out:
                 wav_path = f_out.name
-            # ffmpeg 변환
-            subprocess.run([
-                'ffmpeg', '-y', '-i', webm_path, '-ar', '16000', '-ac', '1', wav_path
-            ], check=True)
-            data, sr = sf.read(wav_path, always_2d=False)
-            # 파일 닫힌 뒤 삭제
-            os.unlink(webm_path)
-            os.unlink(wav_path)
-            return data
+            subprocess.run(['ffmpeg','-y','-i',webm_path,'-ar','16000','-ac','1',wav_path], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            y, sr = sf.read(wav_path, always_2d=False)
+            os.unlink(webm_path); os.unlink(wav_path)
+            return _to_16k_mono(np.array(y, dtype=np.float32), sr=SR)  # ffmpeg로 이미 16k/mono
         else:
-            data, sr = sf.read(io.BytesIO(wav_or_bytes), always_2d=False)
-            return data
-    # path-like
-    y, _ = librosa.load(str(wav_or_bytes), sr=SR, mono=True, res_type="kaiser_best")
-    return y.astype(np.float32)
+            y, sr = sf.read(io.BytesIO(b), always_2d=False)
+            return _to_16k_mono(np.array(y, dtype=np.float32), sr)
 
-def voiced_concat(y, sr=16000, hop_length=256, frame_length=1024):
+    # path 입력
+    y, sr = sf.read(str(wav_or_bytes), always_2d=False)
+    return _to_16k_mono(np.array(y, dtype=np.float32), sr)
+
+def voiced_concat(y, sr=SR, hop_length=256, frame_length=1024):
     """
-    VAD: 유성 프레임만 이어 붙이기 (≈10s 목표, 가변 길이 허용)
+    VAD: pyin 기반 유성 프레임만 이어 붙이기 (학습과 동일, 실패 시 energy fallback)
     """
     f0, vflag, vprob = librosa.pyin(
         y, fmin=librosa.note_to_hz("C2"), fmax=librosa.note_to_hz("C7"),
         sr=sr, frame_length=frame_length, hop_length=hop_length, center=False
     )
     yv_parts = []
-    for i, vf in enumerate(vflag):
-        if vf:
-            s = i * hop_length
-            e = s + frame_length
-            if s < len(y):
-                yv_parts.append(y[s:min(e, len(y))])
-    if not yv_parts:
-        return np.zeros(0, dtype=np.float32)
-    yv = np.concatenate(yv_parts).astype(np.float32)
+    if vflag is not None and np.any(vflag):
+        for i, vf in enumerate(vflag):
+            if vf:
+                s = i * hop_length; e = s + frame_length
+                if s < len(y): yv_parts.append(y[s:min(e, len(y))])
+        if yv_parts:
+            return np.concatenate(yv_parts).astype(np.float32)
 
-    # 만약 pyin 실패 시 energy 기반 추출
+    # pyin 실패 시 energy 기반 fallback
     intervals = librosa.effects.split(y, top_db=30, frame_length=frame_length, hop_length=hop_length)
-    voiced_y = np.concatenate([y[s:e] for s, e in intervals]) if intervals.size else np.array([])
-    print("유성음 길이:", len(voiced_y), "전체 길이:", len(y))  # 로그 추가
-    return voiced_y
+    if intervals.size:
+        return np.concatenate([y[s:e] for s, e in intervals]).astype(np.float32)
+    return np.zeros(0, dtype=np.float32)
 
 def slice_edges(L: int, S_: int = S) -> List[Tuple[int, int]]:
     """
@@ -79,7 +91,9 @@ def mfcc_cmvn(y_seg: np.ndarray, sr: int = SR, n_mfcc: int = N_MFCC) -> np.ndarr
     """
     if len(y_seg) == 0:
         return np.zeros((n_mfcc, 1), dtype=np.float32)
-    M = librosa.feature.mfcc(y=y_seg, sr=sr, n_mfcc=n_mfcc)
+    S_ = librosa.feature.melspectrogram(y=y_seg, sr=sr, power=2.0, **MFCC_CFG)
+    S_db = librosa.power_to_db(S_, ref=np.max)
+    M = librosa.feature.mfcc(S=S_db, n_mfcc=n_mfcc, dct_type=2, norm='ortho', lifter=0)
     M = (M - M.mean(axis=1, keepdims=True)) / (M.std(axis=1, keepdims=True) + 1e-8)
     return M.astype(np.float32)
 
@@ -106,56 +120,80 @@ def voiced_slices_and_feats(y: np.ndarray, sr: int = SR, S_: int = S, n_mfcc: in
         zcr_mean=z_mean, zcr_std=z_std, rms_mean=r_mean, rms_std=r_std
     ), mfcc_slices
 
-def dtw_slice_means(slice_mfcc_list: List[np.ndarray], refs: List[List[np.ndarray]]) -> List[float]:
+def dtw_distance_train_like(M1, M2):
     """
-    각 슬라이스별로 참조(refs)와 DTW 거리 평균 계산
+    학습과 동일하게 DTW 경로 길이로 나눈 평균 거리 반환
     """
-    from fastdtw import fastdtw
-    means = []
-    for i, mfcc in enumerate(slice_mfcc_list):
+    s1 = M1.T.astype(float)
+    s2 = M2.T.astype(float)
+    dist, path = fastdtw(s1, s2, dist=euclidean)
+    return float(dist) / max(1, len(path))
+
+def dtw_slice_means(slice_mfcc_list: list, refs: list) -> list:
+    """
+    각 슬라이스별로 참조(refs)와 DTW 거리 평균 계산 (학습과 동일 스케일)
+    """
+    S = len(slice_mfcc_list)
+    dtw_means = []
+    for i in range(S):
         dists = []
-        for ref in refs:
-            ref_mfcc = ref[i]
-            # DTW 거리 계산 (유클리드)
-            dist, _ = fastdtw(mfcc.T, ref_mfcc.T, dist=2)
-            dists.append(dist)
-        means.append(float(np.mean(dists)))
-    return means
+        for r in refs:
+            try:
+                d = dtw_distance_train_like(slice_mfcc_list[i], r[i])
+            except Exception as e:
+                print(f"[WARN] DTW 계산 오류: {e}")
+                d = np.nan
+            dists.append(d)
+        # NaN이 있으면 평균에서 제외
+        dists = [x for x in dists if np.isfinite(x)]
+        dtw_means.append(float(np.mean(dists)) if dists else np.nan)
+    return dtw_means
 
 def dtw_mean_slope(dtw_means: List[float]) -> float:
     """
     5개 DTW 평균의 선형 기울기
     """
-    x = np.arange(len(dtw_means))
-    y = np.array(dtw_means)
-    if len(y) != 5:
-        return float('nan')
-    coef = np.polyfit(x, y, 1)
+    v = np.asarray(dtw_means, dtype=float)
+    if v.shape[0] != 5 or not np.all(np.isfinite(v)):
+        return float("nan")
+    x = np.arange(5, dtype=float)
+    coef = np.polyfit(x, v, 1)
     return float(coef[0])
 
-def build_feature_vector(feats: Dict, mfcc_slices: List[np.ndarray], refs: List[List[np.ndarray]], xcols: List[str]) -> Tuple[np.ndarray, Dict, Dict]:
-    """
-    최종 특징 벡터(xcols 순서), 상세 dict, 추가 정보 반환
-    """
-    # DTW slice means
-    dtw_means = dtw_slice_means(mfcc_slices, refs)
+def build_feature_vector(feats, mfcc_slices, refs, xcols):
+    S = len(mfcc_slices)
+    features = {}
+    dtw_means, impl_used = dtw_slice_means(mfcc_slices, refs)
+    if len(dtw_means) != 5 or not np.all(np.isfinite(dtw_means)):
+        dtw_means = [np.nan]*5
+        impl_used = (impl_used or "unknown") + "|nan"
+    for i in range(S):
+        features[f"dtw_slice{i+1}_mean"] = dtw_means[i]
     slope = dtw_mean_slope(dtw_means)
-    # 특징 dict
-    features = {
-        f"dtw_slice{i+1}_mean": dtw_means[i] for i in range(len(dtw_means))
-    }
     features["dtw_mean_slope"] = slope
-    features["zcr_mean"] = feats["zcr_mean"]
-    features["zcr_std"] = feats["zcr_std"]
-    features["rms_mean"] = feats["rms_mean"]
-    features["rms_std"] = feats["rms_std"]
-    # xcols 순서대로 벡터 생성
+    features["zcr_mean"] = feats.get("zcr_mean", np.nan)
+    features["zcr_std"]  = feats.get("zcr_std",  np.nan)
+    features["rms_mean"] = feats.get("rms_mean", np.nan)
+    features["rms_std"]  = feats.get("rms_std",  np.nan)
     X = np.array([[features.get(k, np.nan) for k in xcols]], dtype=np.float32)
-    x_cover = float(np.isfinite(X).mean()) / X.shape[1] if X.shape[1] > 0 else 0.0
+    x_cover = float(np.isfinite(X).mean())
     extras = {
-        "smean": dtw_means,
-        "x_cover": x_cover,
-        "S_used": feats["S_used"],
-        "voiced_sec": len(feats["yv"]) / SR if len(feats["yv"]) > 0 else 0.0
+        "smean":      dtw_means,
+        "x_cover":    x_cover,
+        "S_used":     feats.get("S_used", S),
+        "voiced_sec": len(feats.get("yv", [])) / SR if len(feats.get("yv", [])) > 0 else 0.0,
+        "dtw_impl":   impl_used
     }
     return X, features, extras
+
+def sanity_check_pipeline(yv, refs, xcols, feats):
+    import numpy as np
+    try:
+        assert len(refs)>0 and len(refs[0])==5, "refs S != 5"
+        smeans = [feats.get(f"dtw_slice{i}_mean", np.nan) for i in range(1,6)]
+        if np.nanmax(smeans) > 100:
+            print("[WARN] DTW scale drift (>100). Check normalization / CMVN / n_mfcc / DTW impl.")
+        x_cover = float(np.isfinite(np.array([feats[k] for k in xcols])).mean())
+        print(f"[CHK] x_cover={x_cover:.2f} (1.00이어야 정상)")
+    except Exception as e:
+        print(f"[ERROR] sanity_check_pipeline: {e}")

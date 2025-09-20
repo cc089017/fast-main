@@ -42,12 +42,8 @@ async def predict(file: UploadFile = File(...)):
             "threshold": theta,
             "decision": decision,
             "features": features,
-            "smean": extras["smean"],
-            "x_cover": extras["x_cover"],
-            "S_used": extras["S_used"],
-            "voiced_sec": extras["voiced_sec"]
+            "graph": build_explain_png(y, feats, features, extras, refs, meta, risk, theta, decision)
         }
-        result["graph"] = build_explain_png(y, feats, features, extras, refs, meta, risk, theta, decision)
         return JSONResponse(result)
     except Exception as e:
         import traceback
