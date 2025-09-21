@@ -11,14 +11,15 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 export default function TestCarousel() {
     const slides = [<FaceSlide key="face" />, <ArmSlide key="arm" />, <SpeechSlide key="speech" />, <EndSlide key="end" />];
-    const [current, setCurrent] = useState(0);
+    
     const [isAnimating, setIsAnimating] = useState(false);
-
     // [ADD] URL <-> 슬라이드 단계 매핑
     const STEPS = ["face", "arm", "speech", "end"];
     const navigate = useNavigate();
     const location = useLocation();
     const { step } = useParams(); // face | arm | speech | end | undefined
+    const initialIndex = Math.max(0, STEPS.indexOf((step || "face").toLowerCase()));
+    const [current, setCurrent] = useState(initialIndex);
 
     const nextSlide = () => {
         if (isAnimating || current >= slides.length - 1) return;
@@ -32,42 +33,39 @@ export default function TestCarousel() {
         setCurrent((prev) => prev - 1);
     };
 
-    // ⏱️ 슬라이드 전환 애니메이션 타이머 (700ms 후 해제)
+   // 1) 애니메이션 타이머
     useEffect(() => {
         if (!isAnimating) return;
-        const timer = setTimeout(() => {
-            setIsAnimating(false);
-        }, 700);
-        return () => clearTimeout(timer);
-    }, [current]); // 기존 코드 유지
+        const t = setTimeout(() => setIsAnimating(false), 700);
+        return () => clearTimeout(t);
+        }, [isAnimating]); // ← current 말고 isAnimating 기준이 안전
 
-    // [ADD] 1) /test로만 들어오면 /test/face로 정규화
+    // 2) (/test → /test/face) 정규화
+    // App.jsx에서 <Navigate to="/test/face" /> 쓰면 이 블록은 삭제하세요.
     useEffect(() => {
         if (location.pathname === "/test") {
             navigate("/test/face", { replace: true });
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [location.pathname]);
+        }, [location.pathname]);
 
-    // [ADD] 2) URL이 바뀌면 슬라이드 인덱스를 맞춘다 (뒤/앞으로 가기 포함)
+    // 3) URL(step) → 내부 상태(current)
     useEffect(() => {
-        const key = step ?? "face";
-        const idx = Math.max(0, STEPS.indexOf(key));
-        if (idx !== current) {
-            setCurrent(idx);
+        const k = (step || "face").toLowerCase().trim();
+        const idx = STEPS.indexOf(k);
+        if (idx < 0) {
+            navigate("/test/face", { replace: true });
+            return;
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [step]);
+        if (idx !== current) setCurrent(idx);
+        }, [step]);
 
-    // [ADD] 3) 슬라이드 인덱스가 내부에서 바뀌면 URL도 동기화
+    // 4) 내부 상태(current) → URL
     useEffect(() => {
         const target = `/test/${STEPS[current]}`;
         if (location.pathname !== target) {
             navigate(target, { replace: false });
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [current]);
-
+        }, [current]);
     return (
         <div className="w-screen h-screen flex items-center justify-center bg-white relative overflow-hidden">
             <div className="w-[133vh] h-[133vh] rounded-full border-[7vw] border-[#f6f6f6] shadow-xl overflow-hidden flex items-center justify-center z-0 relative">

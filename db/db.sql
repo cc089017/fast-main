@@ -73,7 +73,6 @@ CREATE TABLE IF NOT EXISTS `speech` (
     dtw_graph_url VARCHAR(255),
     feature_graph_url VARCHAR(255),
     waveform_graph_url VARCHAR(255),
-    -- 기타 필요시 추가
     INDEX(user_id),
     INDEX(created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

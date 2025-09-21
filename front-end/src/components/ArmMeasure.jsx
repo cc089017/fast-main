@@ -1,24 +1,26 @@
 import React, { useEffect, useRef, useState } from "react";
 import { postArmPredict } from "@/api/arm";
+import { useNavigate } from "react-router-dom";
 
 export default function ArmMeasure() {
   const videoRef = useRef(null);
   const captureCanvasRef = useRef(null);
   const leftBoxRef = useRef(null);
   const rightBoxRef = useRef(null);
-
-  // Tasks-Vision HandLandmarker
-  const landmarkerRef = useRef(null);
-  const rafRef = useRef(0);
+  const navigate = useNavigate();
+  // MediaPipe Hands 인스턴스
+  const handsRef = useRef(null);
 
   // 자동 시작 제어
   const guideStartRef = useRef(null);   // 박스 안에서 유지 시작 시각
   const startedRef = useRef(false);     // run() 중복 방지
   const cooldownRef = useRef(0);        // 자동 재시작 쿨다운(ms)
 
+  // 미리보기 URL
   const b025UrlRef = useRef(null);
   const b105UrlRef = useRef(null);
 
+  // 상태
   const [log, setLog] = useState([]);
   const [img025, setImg025] = useState(null);
   const [img105, setImg105] = useState(null);
@@ -45,8 +47,8 @@ export default function ArmMeasure() {
   const captureFrame = () => {
     const v = videoRef.current;
     const c = captureCanvasRef.current;
-    const w = v.videoWidth || 1280;
-    const h = v.videoHeight || 720;
+    const w = v?.videoWidth || 1280;
+    const h = v?.videoHeight || 720;
     c.width = w;
     c.height = h;
     const ctx = c.getContext("2d");
@@ -65,6 +67,7 @@ export default function ArmMeasure() {
     setResp(null);
     setImg025(null);
     setImg105(null);
+
     // 기존 미리보기 URL 정리
     if (b025UrlRef.current) URL.revokeObjectURL(b025UrlRef.current);
     if (b105UrlRef.current) URL.revokeObjectURL(b105UrlRef.current);
@@ -92,6 +95,7 @@ export default function ArmMeasure() {
       const data = await postArmPredict(b025, b105);
       setResp(data);
       pushLog("서버 응답 수신");
+      navigate("/test/speech", { replace: true });
     } catch (e) {
       const msg = e?.message || String(e);
       pushLog("오류: " + msg);
@@ -104,7 +108,7 @@ export default function ArmMeasure() {
     }
   };
 
-  // Tasks-Vision 결과 처리 → “좌/우 박스 모두 3초 유지 시 run()”
+  // MediaPipe Hands 결과 처리 → “좌/우 박스 모두 3초 유지 시 run()”
   const onResults = (results) => {
     const video = videoRef.current;
     const leftBox = leftBoxRef.current;
@@ -115,23 +119,22 @@ export default function ArmMeasure() {
     const leftRect = leftBox.getBoundingClientRect();
     const rightRect = rightBox.getBoundingClientRect();
 
-    let inLeft = false,
-      inRight = false;
+    let inLeft = false;
+    let inRight = false;
 
-    // 결과 구조 호환 처리
-    const lmSets = results?.handLandmarks || results?.landmarks || [];
-    const handed = results?.handednesses || results?.handedness || [];
+    const lmSets = results?.multiHandLandmarks || [];
+    const handed = results?.multiHandedness || [];
 
     lmSets.forEach((lm, idx) => {
       const tip = lm[12]; // 가운데 손가락 tip
+      const raw = handed?.[idx];
       const label =
-        handed?.[idx]?.[0]?.categoryName ??
-        (tip.x < 0.5 ? "Left" : "Right"); // fallback
+        raw?.label ??
+        raw?.classification?.[0]?.label ??
+        (tip?.x < 0.5 ? "Left" : "Right"); // 폴백
 
-      // 비디오를 CSS로 미러링 중이므로 x 좌표 반전 필요
-      const MIRRORED = true;
-      const xNorm = MIRRORED ? 1 - tip.x : tip.x;
-      const tipX = videoRect.left + xNorm * videoRect.width;
+      // selfieMode: true이므로 결과 좌표는 화면과 동일한 방향
+      const tipX = videoRect.left + tip.x * videoRect.width;
       const tipY = videoRect.top + tip.y * videoRect.height;
 
       if (
@@ -168,77 +171,95 @@ export default function ArmMeasure() {
     }
   };
 
-  // 초기화: 카메라 + Tasks-Vision HandLandmarker (CDN 동적 import → WASM 충돌 회피)
+  // 초기화: 카메라 + MediaPipe Hands (v0.4, CDN 스크립트 주입)
   useEffect(() => {
     let running = true;
 
+    // CDN 스크립트 로더 (중복 삽입 방지)
+    const loadScript = (src) =>
+      new Promise((resolve, reject) => {
+        if ([...document.scripts].some((s) => s.src === src)) return resolve();
+        const s = document.createElement("script");
+        s.src = src;
+        s.async = true;
+        s.onload = resolve;
+        s.onerror = () => reject(new Error(`Failed to load: ${src}`));
+        document.head.appendChild(s);
+      });
+
     (async () => {
-      // 카메라
+      // 1) 카메라
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "user",
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
+        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       });
       if (videoRef.current) videoRef.current.srcObject = stream;
       await waitVideoReady();
 
-      // Tasks-Vision 동적 import
-      const vision = await import(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14"
-      );
-      const { FilesetResolver, HandLandmarker } = vision;
+      // 2) MediaPipe Hands v0.4 + camera_utils 로드
+      const HANDS_VER = "0.4";
+      await loadScript(`https://cdn.jsdelivr.net/npm/@mediapipe/hands@${HANDS_VER}/hands.js`);
+      try {
+        await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js");
+      } catch {
+        await loadScript("https://unpkg.com/@mediapipe/camera_utils/camera_utils.js");
+      }
+      // (선택) 드로잉이 필요하면 다음 줄도:
+      // await loadScript(`https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@${HANDS_VER}/drawing_utils.js`);
 
-      const filesetResolver = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
-      );
+      const HandsCtor = window.Hands;
+      const CameraCtor = window.Camera;
+      if (!HandsCtor || !CameraCtor) {
+        throw new Error("MediaPipe Hands 또는 Camera 유틸을 불러오지 못했습니다.");
+      }
 
-      const landmarker = await HandLandmarker.createFromOptions(
-        filesetResolver,
-        {
-          baseOptions: {
-            modelAssetPath:
-              "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-          },
-          numHands: 2,
-          minDetectionConfidence: 0.5,
-          minTrackingConfidence: 0.5,
-          runningMode: "VIDEO",
-        }
-      );
-      landmarkerRef.current = landmarker;
+      // 3) Hands 인스턴스 생성
+      const hands = new HandsCtor({
+        locateFile: (file) =>
+          `https://cdn.jsdelivr.net/npm/@mediapipe/hands@${HANDS_VER}/${file}`,
+      });
+      hands.setOptions({
+        selfieMode: true,        // 좌우 화면과 결과 좌표계 일치
+        maxNumHands: 2,
+        modelComplexity: 1,      // 0/1
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+      });
+      hands.onResults(onResults);
+      handsRef.current = hands;
 
-      const loop = () => {
-        if (!running) return;
-        const v = videoRef.current;
-        if (v && v.videoWidth) {
-          const results = landmarker.detectForVideo(v, performance.now());
-          onResults(results);
-        }
-        rafRef.current = requestAnimationFrame(loop);
-      };
-      loop();
+      // 4) Camera 유틸로 프레임 공급
+      const camera = new CameraCtor(videoRef.current, {
+        onFrame: async () => {
+          if (!running) return;
+          await hands.send({ image: videoRef.current });
+        },
+        width: 1280,
+        height: 720,
+      });
+      camera.start();
 
-      pushLog("핸드 추적 시작 (Tasks-Vision)");
-    })();
+      pushLog("핸드 추적 시작 (MediaPipe Hands v0.4 + Camera)");
+    })().catch((err) => {
+      const msg = err?.message || String(err);
+      pushLog("초기화 오류: " + msg);
+      alert(msg);
+    });
 
     return () => {
       running = false;
-      cancelAnimationFrame(rafRef.current);
       try {
-        landmarkerRef.current?.close();
+        handsRef.current?.close?.();
       } catch {}
       const tracks = videoRef.current?.srcObject?.getTracks?.();
       tracks?.forEach((t) => t.stop());
-      // 미리보기 URL 정리
       if (b025UrlRef.current) URL.revokeObjectURL(b025UrlRef.current);
       if (b105UrlRef.current) URL.revokeObjectURL(b105UrlRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // === JSX ===
   return (
     <div className="w-screen h-screen flex items-center justify-center bg-white relative overflow-hidden">
       <div className="w-[133vh] h-[133vh] rounded-full border-[7vw] border-[#f6f6f6] shadow-xl overflow-hidden flex items-center justify-center z-0 relative">
@@ -262,7 +283,7 @@ export default function ArmMeasure() {
               width: "100%",
               height: "100%",
               objectFit: "cover",
-              transform: "scaleX(-1)",
+              transform: "scaleX(-1)", // 화면만 미러링 (selfieMode는 결과 좌표에 적용)
             }}
           />
           {/* 가이드 박스: 좌/우 */}
@@ -296,7 +317,8 @@ export default function ArmMeasure() {
           />
         </div>
       </div>
-      {/* 우측 응답/미리보기 영역 */}
+
+      {/* 우측 응답/미리보기 영역 (수동 버튼 제거) */}
       <div
         style={{
           position: "absolute",
@@ -310,7 +332,7 @@ export default function ArmMeasure() {
           zIndex: 10,
         }}
       >
-        <h2 style={{ marginTop: 0 }}>응답</h2>
+        <h2 style={{ marginTop: 0, color: "#cfe3ff" }}>응답</h2>
         <pre
           style={{
             margin: 0,
@@ -321,6 +343,7 @@ export default function ArmMeasure() {
         >
           {resp ? JSON.stringify(resp, null, 2) : "{ 아직 없음 }"}
         </pre>
+
         {(img025 || img105) && (
           <div
             style={{
@@ -331,7 +354,7 @@ export default function ArmMeasure() {
             }}
           >
             <figure style={{ margin: 0 }}>
-              <figcaption>2.5s 프레임</figcaption>
+              <figcaption style={{ color: "#cfe3ff" }}>2.5s 프레임</figcaption>
               {img025 && (
                 <img
                   src={img025}
@@ -341,7 +364,7 @@ export default function ArmMeasure() {
               )}
             </figure>
             <figure style={{ margin: 0 }}>
-              <figcaption>10.5s 프레임</figcaption>
+              <figcaption style={{ color: "#cfe3ff" }}>10.5s 프레임</figcaption>
               {img105 && (
                 <img
                   src={img105}
@@ -352,17 +375,20 @@ export default function ArmMeasure() {
             </figure>
           </div>
         )}
-        <div style={{ marginTop: 10, fontFamily: "ui-monospace,monospace", fontSize: 13, color: "#a9b4d4", whiteSpace: "pre-wrap" }}>
+
+        <div
+          style={{
+            marginTop: 10,
+            fontFamily: "ui-monospace,monospace",
+            fontSize: 13,
+            color: "#a9b4d4",
+            whiteSpace: "pre-wrap",
+          }}
+        >
           {log.join("\n") || "{ 로그 없음 }"}
         </div>
-        <button
-          onClick={run}
-          disabled={loading || startedRef.current}
-          style={{ padding: "10px 14px", marginTop: 12 }}
-        >
-          {loading || startedRef.current ? "진행 중…" : "측정 수동 시작"}
-        </button>
       </div>
+
       <canvas ref={captureCanvasRef} style={{ display: "none" }} />
     </div>
   );

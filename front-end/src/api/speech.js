@@ -27,3 +27,12 @@ export async function saveSpeechResult(data) {
   });
   return await res.json();
 }
+
+export async function predictSpeech(formData) {
+  const res = await fetch('/api/v1/endpoints/speech/predict', {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) throw new Error('API Error');
+  return await res.json();
+}

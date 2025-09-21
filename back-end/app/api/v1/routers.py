@@ -15,4 +15,4 @@ api_router.include_router(measure.router, prefix="/measure", tags=["measure"])
 api_router.include_router(face.router, prefix="/face", tags=["face"])
 
 # (선택) /api/v1/endpoints/speech
-api_router.include_router(speech.router, prefix="/endpoints/speech", tags=["speech"])
+api_router.include_router(speech.router, prefix="/endpoints", tags=["speech"])
