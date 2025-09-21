@@ -2,6 +2,8 @@
 import React from 'react';
 
 export default function SpeechResult({ result }) {
+  console.log("SpeechResult received:", result); // 디버깅용
+  
   return (
     <div>
       <h2>음성 검사 결과</h2>
@@ -11,7 +13,7 @@ export default function SpeechResult({ result }) {
       <div>
         <p>판정: {result.decision}</p>
         <p>위험도: {result.risk}</p>
-        <p>임계값: {result.threshold}</p>
+        <p>임계값: {result.theta || result.threshold}</p>
         <p>판단 이유: {result.reason}</p>
       </div>
     </div>

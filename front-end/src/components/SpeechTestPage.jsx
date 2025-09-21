@@ -15,27 +15,33 @@ const SpeechTestPage = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
 
-  // 녹음 시작 버튼을 누르면 바로 recording 상태 true로
-  // const handleStart = () => setRecording(true);
-
   // 녹음 종료 시 호출
   const handleStop = async (blob, filename) => {
     setLoading(true);
     setResult(null);
-    // 결과 요청
+    
     try {
-      // 예시: 실제 API 요청 코드로 교체
       const formData = new FormData();
       formData.append("file", blob, filename);
+      
       const res = await fetch("/api/v1/endpoints/speech/predict", {
         method: "POST",
         body: formData,
       });
-      const data = await res.json();
-      setResult(data);
-    } catch  {
-      setResult({ error: "API Error" });
+      
+      if (res.ok) {
+        const data = await res.json();
+        console.log("실제 API 응답:", data); // 이 로그로 실제 응답 구조 확인
+        setResult(data);
+      } else {
+        console.error("API Error:", res.status);
+        setResult({ error: "API Error" });
+      }
+    } catch (e) {
+      console.error("Request Error:", e);
+      setResult({ error: "Request Error" });
     }
+    
     setLoading(false);
     setRecording(false);
   };
