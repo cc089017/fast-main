@@ -1,17 +1,34 @@
-// SpeechRecorder.jsx - 김민규 작성
-
+// SpeechRecorder.jsx - 김수민 작성 (수정: 마운트 시 자동 녹음 시작, 시작 버튼 제거)
 
 import React, { useRef, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 const MAX_SECONDS = 40;
 
 const SpeechRecorder = ({ onStop }) => {
   const mediaRecorderRef = useRef(null);
-  const [recording, setRecording] = useState(false);
-  const [chunks, setChunks] = useState([]);
-  const [seconds, setSeconds] = useState(0);
+  const streamRef = useRef(null);
   const timerRef = useRef(null);
+  const chunksRef = useRef([]); // onstop 클로저 이슈 방지
 
+  const [recording, setRecording] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+  const [mimeType, setMimeType] = useState("audio/webm");
+  const navigate = useNavigate();
+
+  // ✅ 컴포넌트가 마운트되면 자동으로 녹음 시작
+  useEffect(() => {
+    startRecording();
+    return () => {
+      clearInterval(timerRef.current);
+      try { mediaRecorderRef.current?.stop(); } catch (_) {}
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 타이머
   useEffect(() => {
     if (recording) {
       timerRef.current = setInterval(() => {
@@ -31,38 +48,58 @@ const SpeechRecorder = ({ onStop }) => {
 
   const startRecording = async () => {
     setSeconds(0);
+    chunksRef.current = [];
+
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    streamRef.current = stream;
+
     let options = { mimeType: "audio/webm" };
-    if (MediaRecorder.isTypeSupported("audio/webm")) {
+    if (window.MediaRecorder?.isTypeSupported?.("audio/webm")) {
       options = { mimeType: "audio/webm" };
-    } else if (MediaRecorder.isTypeSupported("audio/wav")) {
+    } else if (window.MediaRecorder?.isTypeSupported?.("audio/wav")) {
       options = { mimeType: "audio/wav" };
     }
-    mediaRecorderRef.current = new MediaRecorder(stream, options);
-    setChunks([]);
-    mediaRecorderRef.current.ondataavailable = (e) => {
-      setChunks((prev) => [...prev, e.data]);
+    setMimeType(options.mimeType);
+
+    const mr = new MediaRecorder(stream, options);
+    mediaRecorderRef.current = mr;
+
+    mr.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
     };
-    mediaRecorderRef.current.onstop = () => {
-      if (chunks.length === 0) {
+
+    mr.onstop = () => {
+      // 마이크 스트림 정리
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+
+      const chunks = chunksRef.current;
+      if (!chunks || chunks.length === 0) {
         alert("녹음된 데이터가 없습니다. 다시 시도해 주세요.");
         return;
       }
-      const blob = new Blob(chunks, { type: "audio/webm" });
-      if (blob.size === 0) {
+      const blob = new Blob(chunks, { type: mimeType || "audio/webm" });
+      if (!blob || blob.size === 0) {
         alert("녹음된 데이터가 없습니다. 다시 시도해 주세요.");
         return;
       }
-      onStop(blob, "recording.webm");
-      setChunks([]);
+
+      const filename = (mimeType || "").includes("wav")
+        ? "recording.wav"
+        : "recording.webm";
+
+      onStop?.(blob, filename);   // 상위로 전달
+      navigate("/test/end");      // 종료 후 이동 (원하면 경로 바꿔도 됨)
+      chunksRef.current = [];
     };
-    mediaRecorderRef.current.start();
+
+    mr.start();
     setRecording(true);
   };
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && recording) {
-      mediaRecorderRef.current.stop();
+      try { mediaRecorderRef.current.stop(); } catch (_) {}
       setRecording(false);
     }
   };
@@ -78,14 +115,20 @@ const SpeechRecorder = ({ onStop }) => {
           <span>녹음 대기</span>
         )}
       </div>
-      {!recording ? (
-        <button onClick={startRecording}>녹음 시작</button>
-      ) : (
-        <button onClick={stopRecording}>녹음 종료</button>
-      )}
+
+      {/* ✅ 시작 버튼 제거: 이 컴포넌트는 mount되면 자동 녹음 */}
+      {recording && (
+        <button
+          onClick={stopRecording}
+          className="mt-8 px-7 py-4 text-[22px] bg-red-600 text-white rounded-full shadow-lg font-normal font-sans
+                    hover:scale-110 hover:bg-red-700 hover:font-semibold transition-transform duration-300"
+          style={{ minWidth: 200 }}
+        >
+          녹음 종료
+        </button>
+)}
     </div>
   );
 };
 
 export default SpeechRecorder;
-
