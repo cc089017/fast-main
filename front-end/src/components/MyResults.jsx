@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
-import { Link as RouterLink, useNavigate, useLocation } from "react-router-dom";
+import { useMemo, useState, useEffect } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { Link as LinkIcon, Home, Menu } from "lucide-react";
 import TopRightMenu from "./TopRightMenu"; // 이미 있다면 그대로 사용
+import http from "@/lib/http";
 
 // 상태 뱃지
 function StatusBadge({ value }) {
@@ -14,22 +15,37 @@ function StatusBadge({ value }) {
 }
 
 export default function MyResults() {
-    const navigate = useNavigate();
-    const location = useLocation(); // ✅ 모달 라우트용 배경 전달
+    // 상세 라우팅 비활성화 (요약 전용)
+    const [userName, setUserName] = useState("");
 
-    // TODO: 이후 백엔드 연동 시 API 호출로 대체
-    const allData = useMemo(
-        () => [
-            { id: 6, date: "2025.09.01", face: "경고", arm: "정상", speech: "정상"},
-            { id: 5, date: "2025.07.21", face: "정상", arm: "경고", speech: "경고" },
-            { id: 4, date: "2025.07.19", face: "정상", arm: "정상", speech: "정상" },
-            { id: 3, date: "2025.07.15", face: "정상", arm: "경고", speech: "정상" },
-            { id: 2, date: "2025.07.10", face: "정상", arm: "정상", speech: "정상" },
-            { id: 1, date: "2025.07.01", face: "정상", arm: "정상", speech: "정상" },
-            // 필요하면 더미 더 추가
-        ],
-        []
-    );
+    // 프로필 불러오기 (쿠키 기반 인증)
+    useEffect(() => {
+        let alive = true;
+        (async () => {
+            try {
+                const res = await http.get("/api/v1/auth/profile");
+                if (alive && res?.data?.name) setUserName(res.data.name);
+            } catch {
+                // 인증이 없거나 실패하면 이름 표시 없이 진행
+            }
+        })();
+        return () => { alive = false; };
+    }, []);
+
+    // 실제 데이터 호출: /api/v1/results/summary
+    const [allData, setAllData] = useState([]);
+    useEffect(() => {
+        let alive = true;
+        (async () => {
+            try {
+                const res = await http.get("/api/v1/results/summary");
+                if (alive) setAllData(Array.isArray(res.data) ? res.data : []);
+            } catch (e) {
+                console.warn("[MyResults] summary fetch failed:", e);
+            }
+        })();
+        return () => { alive = false; };
+    }, []);
 
     const pageSize = 5;
     const [page, setPage] = useState(1);
@@ -39,10 +55,7 @@ export default function MyResults() {
         return allData.slice(start, start + pageSize);
     }, [allData, page]);
 
-    const openDetail = (row) => {
-        // ✅ 배경 location 함께 전달 → /results/:id 를 모달로 띄우고 뒤에 MyResults 유지
-        navigate(`/results/${row.id}`, { state: { background: location } });
-    };
+    // 상세 페이지 라우팅은 추후 레코드별 상세가 준비되면 활성화
 
     return (
         <div className="relative min-h-screen bg-white px-6 py-8">
@@ -50,56 +63,40 @@ export default function MyResults() {
             <TopRightMenu showLoginButton={false} showHomeButton={true} />
 
             <div className="text-center mt-4">
-                {/* 제목 */}
+                {/* 제목: "유저 이름"님의 페이지 */}
                 <h1 className="text-7xl font-bold text-blue-600 mt-16 mb-10">
-                    My 검사결과
+                    {userName ? `${userName}님의 페이지` : "My 검사결과"}
                 </h1>
                 <p className="inline-block bg-gray-100 px-12 py-1.5 text-[1.6rem] rounded-full text-black">
                     F.A.S.T 검사 결과를 확인할 수 있습니다.
                 </p>
 
-                {/* 표 */}
+                {/* 표: 더미 데이터 기반 */}
                 <div className="mx-36 mt-20 overflow-hidden rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.08)]">
-                    <table className="w-full table-fixed">
-                        <thead className="bg-white">
-                        <tr className="border-b-2">
-                            <th className="w-[8%] py-5 text-2xl font-semibold text-gray-700">번호</th>
-                            <th className="w-[18%] py-5 text-2xl font-semibold text-gray-700">날짜</th>
-                            <th className="w-[18%] py-5 text-2xl font-semibold text-gray-700">Face 결과</th>
-                            <th className="w-[18%] py-5 text-2xl font-semibold text-gray-700">Arm 결과</th>
-                            <th className="w-[18%] py-5 text-2xl font-semibold text-gray-700">Speech 결과</th>
-                            <th className="w-[20%] py-5 text-2xl font-semibold text-gray-700">결과지 링크</th>
-                        </tr>
+                    <table className="w-full table-auto text-left">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-8 py-6 text-2xl font-semibold text-gray-700">날짜</th>
+                                <th className="px-8 py-6 text-2xl font-semibold text-gray-700">얼굴</th>
+                                <th className="px-8 py-6 text-2xl font-semibold text-gray-700">팔</th>
+                                <th className="px-8 py-6 text-2xl font-semibold text-gray-700">말</th>
+                                <th className="px-8 py-6 text-2xl font-semibold text-gray-700 text-right">상세</th>
+                            </tr>
                         </thead>
                         <tbody>
-                        {pageData.map((row) => (
-                            <tr key={row.id} className="border-b last:border-b-0">
-                                <td className="py-4 text-center text-2xl text-gray-900">{row.id}</td>
-                                <td className="py-4 text-center text-2xl text-gray-900">{row.date}</td>
-                                <td className="py-4 text-center"><StatusBadge value={row.face} /></td>
-                                <td className="py-4 text-center"><StatusBadge value={row.arm} /></td>
-                                <td className="py-4 text-center"><StatusBadge value={row.speech} /></td>
-                                <td className="py-4">
-                                    <div className="flex justify-center">
-                                        <button
-                                            onClick={() => openDetail(row)}
-                                            className="p-2 rounded-xl hover:bg-gray-100 active:scale-95 transition"
-                                            aria-label="결과지 열기"
-                                            title="결과지 열기"
-                                        >
-                                            <LinkIcon className="w-8 h-8 text-gray-600" />
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                        {pageData.length === 0 && (
-                            <tr>
-                                <td colSpan={6} className="py-16 text-center text-gray-500 text-xl">
-                                    데이터가 없습니다.
-                                </td>
-                            </tr>
-                        )}
+                            {pageData.map((row, idx) => (
+                                <tr key={`${row.date}-${idx}`} className="border-t hover:bg-gray-50">
+                                    <td className="px-8 py-6 text-2xl text-gray-800">{row.date || "-"}</td>
+                                    <td className="px-8 py-6"><StatusBadge value={row.face || "미실시"} /></td>
+                                    <td className="px-8 py-6"><StatusBadge value={row.arm || "미실시"} /></td>
+                                    <td className="px-8 py-6"><StatusBadge value={row.speech || "미실시"} /></td>
+                                    <td className="px-8 py-6 text-right">
+                                        <span className="inline-flex items-center gap-2 text-gray-400 text-2xl select-none">
+                                            <LinkIcon size={22} /> -
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
                         </tbody>
                     </table>
                 </div>

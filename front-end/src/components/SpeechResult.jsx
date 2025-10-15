@@ -1,51 +1,12 @@
 // SpeechResult.jsx - 김민규 작성
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function SpeechResult({ result }) {
-  if (!result) return null;
-
   const [showDebug, setShowDebug] = useState(false);
-
-  const summary = useMemo(() => {
-    const feats = result.features || {};
-    const dbg = result.debug_info || {};
-    const dtw =
-      Array.isArray(dbg.dtw_means) && dbg.dtw_means.length
-        ? dbg.dtw_means
-        : [
-            feats.dtw_slice1_mean,
-            feats.dtw_slice2_mean,
-            feats.dtw_slice3_mean,
-            feats.dtw_slice4_mean,
-            feats.dtw_slice5_mean,
-          ].filter((v) => typeof v === "number");
-    const avg =
-      dtw.length > 0
-        ? Number((dtw.reduce((a, b) => a + b, 0) / dtw.length).toFixed(2))
-        : null;
-
-    return {
-      decision: result.decision,
-      pred: result.pred,
-      risk:
-        typeof result.risk === "number" ? Number(result.risk.toFixed(3)) : result.risk,
-      threshold:
-        typeof result.threshold === "number"
-          ? Number(result.threshold.toFixed(3))
-          : result.threshold,
-      dtw_means: dtw.map((v) => Number(v.toFixed?.(2) ?? v)),
-      dtw_avg: avg,
-      dtw_slope:
-        typeof (dbg.dtw_slope ?? feats.dtw_mean_slope) === "number"
-          ? Number((dbg.dtw_slope ?? feats.dtw_mean_slope).toFixed(5))
-          : dbg.dtw_slope ?? feats.dtw_mean_slope,
-      audio_duration:
-        typeof dbg.audio_duration === "number"
-          ? Number(dbg.audio_duration.toFixed(2))
-          : null,
-      filename: dbg.filename || null,
-    };
-  }, [result]);
+  const navigate = useNavigate();
+  const fileName = result?.debug_info?.filename ?? null;
+  if (!result) return null;
 
   const decisionColor = result.decision === "Abnormal" ? "text-red-600" : "text-green-600";
   const decisionBg = result.decision === "Abnormal" ? "bg-red-50" : "bg-green-50";
@@ -80,18 +41,20 @@ export default function SpeechResult({ result }) {
               : result.threshold}
             %
           </span>
-          {summary.filename && (
-            <span className="ml-auto text-xs text-gray-500">파일: {summary.filename}</span>
-          )}
+                  {fileName && (
+                    <span className="ml-auto text-xs text-gray-500">파일: {fileName}</span>
+                  )}
         </div>
       </div>
 
-      {/* 요약 JSON (중요 정보만) */}
-      <div>
-        <h4 className="text-md font-semibold mb-1">요약</h4>
-        <pre className="text-sm bg-gray-50 rounded border p-3 overflow-x-auto">
-{JSON.stringify(summary, null, 2)}
-        </pre>
+      {/* 이동 버튼 */}
+      <div className="mt-4">
+        <button
+          onClick={() => navigate("/results")}
+          className="px-6 py-3 bg-blue-600 text-white rounded-lg text-lg shadow hover:bg-blue-700"
+        >
+          My 검사 결과 페이지로 이동
+        </button>
       </div>
 
       {/* 전체 디버그 JSON: 기본 접힘 */}

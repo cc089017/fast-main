@@ -28,7 +28,23 @@ from app.core.security import get_user_id_from_cookie
 
 router = APIRouter()
 
-MODEL_DIR = "assets/models/S5_voiced~10s_sr16000_cal_20250918_serve4x"
+# 모델 디렉터리 해상: 루트(../assets/...)와 back-end/assets 모두 지원
+def _resolve_model_dir():
+    here = os.path.abspath(os.path.dirname(__file__))
+    # 프로젝트 루트 추정 (endpoints -> v1 -> api -> app -> back-end -> ROOT)
+    root = os.path.abspath(os.path.join(here, "..", "..", "..", "..", ".."))
+    candidates = [
+        os.path.join(root, "assets", "models", "S5_voiced~10s_sr16000_cal_20250918_serve4x"),
+        os.path.join(root, "back-end", "assets", "models", "S5_voiced~10s_sr16000_cal_20250918_serve4x"),
+        os.path.join("assets", "models", "S5_voiced~10s_sr16000_cal_20250918_serve4x"),
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    # 마지막 수단: 기본 상대경로 반환(존재하지 않을 수 있음)
+    return candidates[0]
+
+MODEL_DIR = _resolve_model_dir()
 
 _model_cache = None
 
@@ -105,6 +121,7 @@ async def check_system():
     return {
         "ffmpeg_installed": check_ffmpeg(),
         "pydub_available": True,
+        "model_dir": MODEL_DIR,
         "model_dir_exists": os.path.exists(MODEL_DIR),
         "librosa_available": True,
         "system": "windows",

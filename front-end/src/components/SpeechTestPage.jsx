@@ -41,9 +41,10 @@ export default function SpeechTestPage() {
 
       console.log("[DEBUG] Sending to API:", filename, blob.size, "bytes");
 
-      const res = await fetch("http://127.0.0.1:8000/api/v1/speech/predict", {
+      const res = await fetch("/api/v1/speech/predict", {
         method: "POST",
         body: fd,
+        credentials: "include",
       });
 
       console.log("Response status:", res.status);
@@ -78,7 +79,7 @@ export default function SpeechTestPage() {
   };
 
   return (
-    <div className="w-screen h-screen flex items-center justify-center bg-white relative overflow-hidden">
+    <div className="w-screen h-screen flex items-center justify-center bg-white relative">
       {/* 원형 링 배경 */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
         <div className="w-[133vh] h-[133vh] rounded-full border-[7vw] border-[#f6f6f6] shadow-xl overflow-hidden" />

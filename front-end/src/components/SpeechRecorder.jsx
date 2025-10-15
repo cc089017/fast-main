@@ -135,7 +135,7 @@ const SpeechRecorder = ({ onStop, onDone }) => {
       clearInterval(timerRef.current);
       try { 
         mediaRecorderRef.current?.stop(); 
-      } catch (_) {
+      } catch {
         // 무시
       }
       streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -171,9 +171,10 @@ const SpeechRecorder = ({ onStop, onDone }) => {
       setUploading(true);
       const fd = new FormData();
       fd.append("file", file, file.name);
-      const res = await fetch("http://127.0.0.1:8000/api/v1/speech/predict", {
+      const res = await fetch("/api/v1/speech/predict", {
         method: "POST",
         body: fd,
+        credentials: "include",
       });
       const data = await res.json();
       onDone?.(data); // 결과를 부모(SpeechTestPage)로 전달
