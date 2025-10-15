@@ -1,40 +1,58 @@
 # 예측 결과 시각화 - 김민규 작성
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import numpy as np
+import base64, io
 
 def build_explain_png(y, feats, features, extras, refs, meta, risk, theta, decision):
-    import matplotlib.pyplot as plt
-    import base64
-    from io import BytesIO
+    try:
+        sr = meta.get("sr", 16000)
+        fig, axs = plt.subplots(2, 2, figsize=(12, 8))
 
-    fig, axs = plt.subplots(2, 2, figsize=(8, 6))
+        # 1) 파형 + 슬라이스 경계
+        t = np.arange(len(y)) / sr
+        axs[0,0].plot(t, y, color='steelblue', linewidth=0.8)
+        edges = extras.get("slice_edges", [])
+        for i, e in enumerate(edges[:-1]):
+            axs[0,0].axvline(e / sr, color='crimson', linestyle='--', alpha=0.7)
+            axs[0,0].text(e / sr, 0.8*np.nanmax(np.abs(y)+1e-6), f"S{i+1}", fontsize=8, color='crimson')
+        axs[0,0].set_title("Voiced Waveform & Slice Boundaries")
+        axs[0,0].set_xlabel("Time (s)"); axs[0,0].set_ylabel("Amplitude"); axs[0,0].grid(True, alpha=0.3)
 
-    # 파형 + 슬라이스 경계선 표시
-    axs[0, 0].plot(y)
-    slice_edges = extras.get("slice_edges", [])
-    for edge in slice_edges:
-        axs[0, 0].axvline(edge, color='r', linestyle='--')
-    axs[0, 0].set_title("Voiced waveform & slices")
+        # 2) DTW 막대
+        dtw_means = [features.get(f"dtw_slice{i}_mean", 0.0) for i in range(1,6)]
+        bars = axs[0,1].bar(range(1,6), dtw_means, color='skyblue', edgecolor='navy')
+        axs[0,1].axhline(4.5, color='red', linestyle='--', label='~4.5')
+        for b, v in zip(bars, dtw_means):
+            axs[0,1].text(b.get_x()+b.get_width()/2, b.get_height()+0.05, f"{v:.2f}", ha='center', va='bottom', fontsize=9)
+        axs[0,1].set_title("DTW Distance per Slice")
+        axs[0,1].set_xlabel("Slice"); axs[0,1].set_ylabel("Distance"); axs[0,1].legend(); axs[0,1].grid(True, alpha=0.3)
 
-    # Top-right: DTW 5-point (dtw_slice1_mean ~ dtw_slice5_mean)
-    dtw_means = [features.get(f'dtw_slice{i}_mean', 0) for i in range(1, 6)]
-    axs[0, 1].plot(range(1, 6), dtw_means, marker='o')
-    axs[0, 1].set_title("DTW Slice Means")
-    axs[0, 1].set_xlabel("Slice")
-    axs[0, 1].set_ylabel("DTW Mean")
+        # 3) ZCR/RMS
+        zlabels = ['ZCR Mean','ZCR Std','RMS Mean','RMS Std']
+        zvals = [features.get('zcr_mean',0), features.get('zcr_std',0), features.get('rms_mean',0), features.get('rms_std',0)]
+        bars2 = axs[1,0].bar(zlabels, zvals, color='lightgreen', edgecolor='darkgreen')
+        top = max(max(zvals), 1e-3)
+        for b, v in zip(bars2, zvals):
+            axs[1,0].text(b.get_x()+b.get_width()/2, v + top*0.02, f"{v:.3f}", ha='center', va='bottom', fontsize=8)
+        axs[1,0].set_title("ZCR & RMS"); axs[1,0].grid(True, alpha=0.3)
 
-    # Bottom-left: ZCR/RMS bars
-    zcr_rms_labels = ['zcr_mean', 'zcr_std', 'rms_mean', 'rms_std']
-    zcr_rms_values = [features.get(label, 0) for label in zcr_rms_labels]
-    axs[1, 0].bar(zcr_rms_labels, zcr_rms_values)
-    axs[1, 0].set_title("ZCR/RMS")
+        # 4) 결과 카드
+        axs[1,1].axis('off')
+        color = 'red' if decision=='Abnormal' else 'green'
+        axs[1,1].text(0.5, 0.75, "Risk", ha='center', fontsize=12, weight='bold')
+        axs[1,1].text(0.5, 0.65, f"{risk:.3f}", ha='center', fontsize=20, color=color, weight='bold')
+        axs[1,1].text(0.5, 0.48, f"Threshold: {theta:.3f}", ha='center', fontsize=12)
+        axs[1,1].text(0.5, 0.32, f"Decision: {decision}", ha='center', fontsize=16, color=color, weight='bold')
+        axs[1,1].text(0.5, 0.18, f"DTW Avg: {np.mean(dtw_means):.2f}", ha='center', fontsize=11)
 
-    # Bottom-right: 판정 카드
-    axs[1, 1].text(0.1, 0.5, f"Risk: {risk:.3f}\nTheta: {theta:.3f}\nDecision: {decision}", fontsize=14)
-    axs[1, 1].axis('off')
-
-    buf = BytesIO()
-    plt.tight_layout()
-    plt.savefig(buf, format='png')
-    plt.close(fig)
-    buf.seek(0)
-    img_base64 = base64.b64encode(buf.read()).decode("utf-8")
-    return img_base64
+        plt.tight_layout()
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight', facecolor='white'); buf.seek(0)
+        b64 = base64.b64encode(buf.getvalue()).decode()
+        plt.close(fig)
+        return b64
+    except Exception as e:
+        print(f"[ERROR] build_explain_png: {e}")
+        return None

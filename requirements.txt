@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 sqlalchemy
 pymysql
+cryptography
 python-jose
 passlib[bcrypt]
 pydantic==1.10.14

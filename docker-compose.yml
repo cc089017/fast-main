@@ -6,9 +6,9 @@ services:
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: rootpw
-      MYSQL_DATABASE: fastdb
-      MYSQL_USER: fastuser
-      MYSQL_PASSWORD: fastpw
+      MYSQL_DATABASE: fast_db
+      MYSQL_USER: fastteamjpsm
+      MYSQL_PASSWORD: fast!jpsm
     ports:
       - "3306:3306"
     volumes:

@@ -53,26 +53,34 @@ CREATE TABLE IF NOT EXISTS `arm` (
     ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+DROP TABLE IF EXISTS `speech`;
+
 CREATE TABLE IF NOT EXISTS `speech` (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    wav_filename VARCHAR(255),
-    model_tag VARCHAR(64),
-    risk_score FLOAT,
-    threshold FLOAT,
-    result_text VARCHAR(32),
-    dtw_slice1 FLOAT,
-    dtw_slice2 FLOAT,
-    dtw_slice3 FLOAT,
-    dtw_slice4 FLOAT,
-    dtw_slice5 FLOAT,
-    dtw_slope FLOAT,
-    x_cover FLOAT,
-    voiced_sec FLOAT,
-    dtw_graph_url VARCHAR(255),
-    feature_graph_url VARCHAR(255),
-    waveform_graph_url VARCHAR(255),
-    INDEX(user_id),
-    INDEX(created_at)
+  `id`                 BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id`            VARCHAR(50)     NULL,                    -- 비로그인 허용
+  `created_at`         DATETIME(6)     NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `wav_filename`       VARCHAR(255)    NULL,
+  `model_tag`          VARCHAR(64)     NULL,
+  `risk_score`         FLOAT           NULL,
+  `threshold`          FLOAT           NULL,
+  `result_text`        VARCHAR(32)     NULL,
+  `dtw_slice1`         FLOAT           NULL,
+  `dtw_slice2`         FLOAT           NULL,
+  `dtw_slice3`         FLOAT           NULL,
+  `dtw_slice4`         FLOAT           NULL,
+  `dtw_slice5`         FLOAT           NULL,
+  `dtw_slope`          FLOAT           NULL,
+  `x_cover`            FLOAT           NULL,
+  `voiced_sec`         FLOAT           NULL,
+  `features_json`      JSON            NULL,  -- 선택: 피처 전체 저장
+  `debug_json`         JSON            NULL,  -- 선택: 디버그 정보 저장
+  `dtw_graph_url`      VARCHAR(255)    NULL,  -- 외부 저장소 사용 시
+  `feature_graph_url`  VARCHAR(255)    NULL,
+  `waveform_graph_url` VARCHAR(255)    NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_speech_user_created` (`user_id`, `created_at`),
+  CONSTRAINT `fk_speech_user`
+    FOREIGN KEY (`user_id`) REFERENCES `user`(`id`)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
