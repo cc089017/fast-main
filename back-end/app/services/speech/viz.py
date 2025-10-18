@@ -56,3 +56,49 @@ def build_explain_png(y, feats, features, extras, refs, meta, risk, theta, decis
     except Exception as e:
         print(f"[ERROR] build_explain_png: {e}")
         return None
+
+
+def build_waveform_png(y, meta, extras):
+    """파형 + 슬라이스 경계를 단일 이미지로 생성하여 base64 반환"""
+    try:
+        sr = meta.get("sr", 16000)
+        fig, ax = plt.subplots(1, 1, figsize=(10, 3))
+        t = np.arange(len(y)) / sr
+        ax.plot(t, y, color='steelblue', linewidth=0.8)
+        edges = extras.get("slice_edges", [])
+        for i, e in enumerate(edges[:-1]):
+            ax.axvline(e / sr, color='crimson', linestyle='--', alpha=0.7)
+            ax.text(e / sr, 0.8*np.nanmax(np.abs(y)+1e-6), f"S{i+1}", fontsize=8, color='crimson')
+        ax.set_title("Voiced Waveform")
+        ax.set_xlabel("Time (s)"); ax.set_ylabel("Amplitude"); ax.grid(True, alpha=0.3)
+        plt.tight_layout()
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight', facecolor='white'); buf.seek(0)
+        b64 = base64.b64encode(buf.getvalue()).decode()
+        plt.close(fig)
+        return b64
+    except Exception as e:
+        print(f"[ERROR] build_waveform_png: {e}")
+        return None
+
+
+def build_dtw_png(dtw_means, normal_ref: float = 4.5):
+    """DTW 슬라이스 막대 그래프 생성하여 base64 반환"""
+    try:
+        fig, ax = plt.subplots(1, 1, figsize=(10, 3))
+        xs = list(range(1, 6))
+        bars = ax.bar(xs, dtw_means, color='skyblue', edgecolor='navy')
+        ax.axhline(normal_ref, color='red', linestyle='--', label=f'Normal avg~{normal_ref}')
+        for b, v in zip(bars, dtw_means):
+            ax.text(b.get_x()+b.get_width()/2, b.get_height()+0.05, f"{v:.2f}", ha='center', va='bottom', fontsize=9)
+        ax.set_title("DTW Distance per Slice")
+        ax.set_xlabel("Slice"); ax.set_ylabel("Distance"); ax.legend(); ax.grid(True, alpha=0.3)
+        plt.tight_layout()
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight', facecolor='white'); buf.seek(0)
+        b64 = base64.b64encode(buf.getvalue()).decode()
+        plt.close(fig)
+        return b64
+    except Exception as e:
+        print(f"[ERROR] build_dtw_png: {e}")
+        return None

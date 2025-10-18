@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, useLocation } from "react-router-dom";
 import { Link as LinkIcon, Home, Menu } from "lucide-react";
 import TopRightMenu from "./TopRightMenu"; // 이미 있다면 그대로 사용
 import http from "@/lib/http";
@@ -15,6 +15,7 @@ function StatusBadge({ value }) {
 }
 
 export default function MyResults() {
+    const location = useLocation();
     // 상세 라우팅 비활성화 (요약 전용)
     const [userName, setUserName] = useState("");
 
@@ -32,16 +33,16 @@ export default function MyResults() {
         return () => { alive = false; };
     }, []);
 
-    // 실제 데이터 호출: /api/v1/results/summary
+    // 실제 데이터 호출: /api/v1/results/sessions (speech를 앵커로 누적 표시)
     const [allData, setAllData] = useState([]);
     useEffect(() => {
         let alive = true;
         (async () => {
             try {
-                const res = await http.get("/api/v1/results/summary");
+                const res = await http.get("/api/v1/results/sessions");
                 if (alive) setAllData(Array.isArray(res.data) ? res.data : []);
             } catch (e) {
-                console.warn("[MyResults] summary fetch failed:", e);
+                console.warn("[MyResults] sessions fetch failed:", e);
             }
         })();
         return () => { alive = false; };
@@ -91,9 +92,19 @@ export default function MyResults() {
                                     <td className="px-8 py-6"><StatusBadge value={row.arm || "미실시"} /></td>
                                     <td className="px-8 py-6"><StatusBadge value={row.speech || "미실시"} /></td>
                                     <td className="px-8 py-6 text-right">
-                                        <span className="inline-flex items-center gap-2 text-gray-400 text-2xl select-none">
-                                            <LinkIcon size={22} /> -
-                                        </span>
+                                        {row.detail_id ? (
+                                            <RouterLink
+                                                to={`/results/${row.detail_id}`}
+                                                state={{ background: location }}
+                                                className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 text-2xl"
+                                            >
+                                                <LinkIcon size={22} /> 상세보기
+                                            </RouterLink>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-2 text-gray-400 text-2xl select-none">
+                                                <LinkIcon size={22} /> -
+                                            </span>
+                                        )}
                                     </td>
                                 </tr>
                             ))}
