@@ -71,7 +71,7 @@ def _resolve_model_dir():
     root = os.path.abspath(os.path.join(here, "..", "..", "..", "..", ".."))
     candidates = [
         os.path.join(root, "assets", "models", "S5_voiced~10s_sr16000_cal_20250918_serve4x"),
-        os.path.join(root, "back-end", "assets", "models", "S5_voiced~10s_sr16000_cal_20250918_serve4x"),
+        os.path.join(root, "back-end","app", "assets", "models", "S5_voiced~10s_sr16000_cal_20250918_serve4x"),
         os.path.join("assets", "models", "S5_voiced~10s_sr16000_cal_20250918_serve4x"),
     ]
     for p in candidates:

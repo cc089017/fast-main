@@ -18,7 +18,7 @@ S = 5               # 슬라이스 개수
 N_MFCC = 13         # MFCC 개수
 
 # 모델 경로 수정
-MODEL_PATH = "assets/models/S5_voiced~10s_sr16000_cal_20250918_serve4x"
+MODEL_PATH = "back-end/app/assets/models/S5_voiced~10s_sr16000_cal_20250918_serve4x"
 
 def load_audio_16k(wav_or_bytes, filename=None):
     """
