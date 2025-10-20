@@ -10,7 +10,7 @@ services:
       MYSQL_USER: fastteamjpsm
       MYSQL_PASSWORD: fast!jpsm
     ports:
-      - "3306:3306"
+      - "13306:3306"
     volumes:
       - ./db:/docker-entrypoint-initdb.d
       - mysql_data:/var/lib/mysql

@@ -7,8 +7,7 @@ from app.crud.arm import create_arm
 from app.services.inference.arm_xgb_runner import predict_proba_and_label
 from app.services.features.arm_features import extract_features_from_two_images
 from app.core.security import get_user_id_from_cookie
-router = APIRouter(prefix="/api/v1/arm", tags=["arm"])
-
+router = APIRouter(tags=["arm"])
 @router.post("/predict")
 async def predict_arm_v1(
     start_file: UploadFile = File(...),

@@ -10,6 +10,11 @@ export default defineConfig({
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
+      // 정적 리소스도 백엔드에서 서빙하므로 /static 도 프록시 필요
+      '/static': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
     },
   },
   resolve: {

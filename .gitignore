@@ -16,4 +16,4 @@ dist/
 .DS_Store
 Thumbs.db
 
-back-end/assets/models/
+back-end/app/assets/models/

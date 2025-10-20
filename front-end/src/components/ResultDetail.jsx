@@ -1,29 +1,43 @@
 // src/components/ResultDetail.jsx
-import { useParams, Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import http from "@/lib/http";
 
 export default function ResultDetail() {
     const { id } = useParams();
+    const navigate = useNavigate();
+    const [loading, setLoading] = useState(true);
+    const [data, setData] = useState(null);
 
-    const data = {
-        name: "홍 민 기",
-        birth: "2001. 01. 20",
-        gender: "남성",
-        testedAt: "2025. 07. 24",
-        face: { status: "주의", image: "/images/placeholder_face.png" },
-        arm: {
-            status: "정상",
-            before: "/images/placeholder_arm_before.png",
-            after: "/images/placeholder_arm_after.png",
-        },
-        speech: {
-            status: "정상",
-            before: "/images/placeholder_wave_before.png",
-            after: "/images/placeholder_wave_after.png",
-        },
-        summary: "",
-    };
+    useEffect(() => {
+        let alive = true;
+        (async () => {
+            try {
+                const res = await http.get(`/api/v1/results/detail/${id}`);
+                if (alive) setData(res.data);
+            } catch (e) {
+                if (alive) setData({ error: e?.response?.data?.detail || e.message });
+            } finally {
+                if (alive) setLoading(false);
+            }
+        })();
+        return () => { alive = false; };
+    }, [id]);
 
-    const statusColor = (s) => (s === "주의" ? "text-red-500" : "text-blue-600");
+    const statusColor = (s) => (s === "경고" || s === "주의" ? "text-red-500" : "text-blue-600");
+
+    if (loading) return (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center text-white text-xl">불러오는 중…</div>
+    );
+    if (!data || data.error) return (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
+            <div className="bg-white p-6 rounded shadow text-center">
+                <div className="text-red-600 font-semibold mb-2">상세 데이터를 불러오지 못했습니다</div>
+                <div className="text-sm text-gray-600">{data?.error || "알 수 없는 오류"}</div>
+                <Link to="/results" className="mt-4 inline-block px-4 py-2 bg-blue-600 text-white rounded">닫기</Link>
+            </div>
+        </div>
+    );
 
     return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-[1px] overflow-y-auto p-6">
@@ -32,6 +46,14 @@ export default function ResultDetail() {
             className="relative mx-auto bg-white shadow-2xl border border-gray-200 flex flex-col"
             style={{ aspectRatio: "210 / 297", width: "min(92vw, 794px)" }}
         >
+            {/* 항상 보이는 닫기 버튼 (우상단) */}
+            <button
+                onClick={() => navigate(-1)}
+                className="absolute top-3 right-3 px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm"
+                aria-label="닫기"
+            >
+                닫기
+            </button>
             {/* 헤더 */}
             <div className="px-6 sm:px-8 pt-6">
                 <h1 className="text-center text-7xl font-extrabold text-blue-600 tracking-wide">F.A.S.T</h1>
@@ -46,10 +68,10 @@ export default function ResultDetail() {
                     </div>
                     <div className="h-px mx-4 bg-gray-300" />
                     <div className="grid grid-cols-4 text-center text-[15px]">
-                        <div className="py-2">{data.name}</div>
-                        <div className="py-2">{data.birth}</div>
-                        <div className="py-2">{data.gender}</div>
-                        <div className="py-2">{data.testedAt}</div>
+                        <div className="py-2">{data.user?.name || '-'}</div>
+                        <div className="py-2">{data.user?.birth || '-'}</div>
+                        <div className="py-2">{data.user?.gender || '-'}</div>
+                        <div className="py-2">{data.date}</div>
                     </div>
                 </div>
             </div>
@@ -60,20 +82,20 @@ export default function ResultDetail() {
                 <section className="mb-4">
                     <div className="flex items-baseline gap-2">
                         <h2 className="text-[20px] font-semibold text-gray-800">Face 분석 |</h2>
-                        <span className={`text-[21px] font-bold ${statusColor(data.face.status)}`}> {data.face.status}</span>
+                        <span className={`text-[21px] font-bold ${statusColor(data.face?.result)}`}> {data.face?.result || "미실시"}</span>
                     </div>
 
                     {/* 가운데 정렬 */}
                     <div className="mt-0.5 grid grid-cols-[350px_1fr] gap-6 rounded-xl bg-gray-100 p-4">
                         <div className="w-[330px] rounded-xl border border-gray-300 bg-white overflow-hidden flex items-center justify-center">
-                            <img
-                                src="/facetest.png"
-                                alt="Face 분석 이미지"  /* 테스트용 사진이라 연동할 때 수정 */
-                                className="w-full h-auto object-contain"
-                            />
+                            {data.face?.image_url ? (
+                                <img src={data.face.image_url} alt="Face" className="w-full h-auto object-contain" />
+                            ) : (
+                                <div className="text-gray-400 text-sm py-12">이미지 없음</div>
+                            )}
                         </div>
-                        <div className="p-2 text-sm text-black">
-                            Face 결과지 내용 입력 예정
+                        <div className="p-2 text-sm text-black whitespace-pre-wrap">
+                            {data.face?.result_text || "-"}
                         </div>
                     </div>
                 </section>
@@ -82,20 +104,31 @@ export default function ResultDetail() {
                 <section className="mb-4">
                     <div className="flex items-baseline gap-2">
                         <h2 className="text-[20px] font-semibold text-gray-800">Arm 분석 |</h2>
-                        <span className={`text-[21px] font-bold ${statusColor(data.arm.status)}`}> {data.arm.status}</span>
+                        <span className={`text-[21px] font-bold ${statusColor(data.arm?.result)}`}> {data.arm?.result || "미실시"}</span>
                     </div>
 
                     {/* 가운데 정렬 */}
                     <div className="mt-0.5 grid grid-cols-[350px_1fr] gap-6 rounded-xl bg-gray-100 p-4">
-                        <div className="w-[330px] rounded-xl border border-gray-300 bg-white overflow-hidden flex items-center justify-center">
-                            <img
-                                src="/armtest.png"
-                                alt="Face 분석 이미지"  /* 테스트용 사진이라 연동할 때 수정 */
-                                className="w-full h-auto object-contain"
-                            />
+                        <div className="w-[330px] rounded-xl border border-gray-300 bg-white overflow-hidden">
+                            <div className="grid grid-cols-2 gap-2 p-2">
+                                <div className="aspect-square rounded border border-gray-300 bg-white overflow-hidden flex items-center justify-center">
+                                    {data.arm?.start_image_url ? (
+                                        <img src={data.arm.start_image_url} alt="Arm 시작" className="w-full h-full object-contain" />
+                                    ) : (
+                                        <div className="text-gray-400 text-xs">시작 이미지 없음</div>
+                                    )}
+                                </div>
+                                <div className="aspect-square rounded border border-gray-300 bg-white overflow-hidden flex items-center justify-center">
+                                    {data.arm?.end_image_url ? (
+                                        <img src={data.arm.end_image_url} alt="Arm 종료" className="w-full h-full object-contain" />
+                                    ) : (
+                                        <div className="text-gray-400 text-xs">종료 이미지 없음</div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                         <div className="p-2 text-sm text-black">
-                            Arm 결과지 내용 입력 예정
+                            {data.arm?.label ? `label=${data.arm.label}, confidence=${data.arm.confidence ?? "-"}` : "-"}
                         </div>
                     </div>
                 </section>
@@ -104,33 +137,43 @@ export default function ResultDetail() {
                 <section className="mb-4">
                     <div className="flex items-baseline gap-2">
                         <h2 className="text-[20px] font-semibold text-gray-800">Speech 분석 |</h2>
-                        <span className={`text-[21px] font-bold ${statusColor(data.speech.status)}`}> {data.speech.status} </span>
+                        <span className={`text-[21px] font-bold ${statusColor(data.speech?.result)}`}> {data.speech?.result || "미실시"} </span>
                     </div>
 
                     {/* 가운데 정렬 */}
                     <div className="mt-0.5 grid grid-cols-[350px_1fr] gap-6 rounded-xl bg-gray-100 p-4">
                         {/* 이미지 2개를 가로로 나란히 */}
                         <div className="flex gap-4">
-                            {/* 첫 번째 이미지 */}
                             <div className="w-[170px] aspect-square rounded-xl border border-gray-300 bg-white overflow-hidden flex items-center justify-center">
-                                <img
-                                    src="/speechtest1.png"
-                                    alt="Speech 처음 파장"
-                                    className="w-full h-full object-contain"
-                                />
+                                {data.speech?.waveform_graph_url ? (
+                                    <img src={data.speech.waveform_graph_url} alt="Waveform" className="w-full h-full object-contain" />
+                                ) : (
+                                    <div className="text-gray-400 text-sm">파형 없음</div>
+                                )}
                             </div>
-                            {/* 두 번째 이미지 */}
                             <div className="w-[170px] aspect-square rounded-xl border border-gray-300 bg-white overflow-hidden flex items-center justify-center">
-                                <img
-                                    src="/speechtest2.png"
-                                    alt="Speech 나중 파장"
-                                    className="w-full h-full object-contain"
-                                />
+                                {data.speech?.dtw_graph_url ? (
+                                    <img src={data.speech.dtw_graph_url} alt="DTW" className="w-full h-full object-contain" />
+                                ) : (
+                                    <div className="text-gray-400 text-sm">DTW 없음</div>
+                                )}
                             </div>
                         </div>
                         {/* 결과 텍스트 */}
-                        <div className="p-2 text-sm text-black">
-                            Speech 결과지 내용 입력 예정
+                        <div className="p-2 text-sm text-black whitespace-pre-wrap">
+                            {(() => {
+                                const risk = data.speech?.risk;
+                                const th = data.speech?.threshold;
+                                const label = data.speech?.result || "-";
+                                // 간단한 개인화 문구 (백엔드 저장값이 있으면 우선)
+                                if (data.speech?.personalized_text) return data.speech.personalized_text;
+                                return (
+                                    `검사결과 위험도 ${typeof risk === 'number' ? risk.toFixed(3) : risk}로 (${label}) 결과가 나왔습니다. ` +
+                                    `비정상 음성 데이터 3972명 중 ~퍼센트는 위험도가 ${typeof th === 'number' ? th.toFixed(3) : th}보다 높게 나왔으며 ` +
+                                    `정상 음성 데이터 4240개의 평균 dtw 거리와 ~만큼의 차이가 있습니다. 재검 혹은 관리가 필요합니다. ` +
+                                    `*8000여개의 데이터를 사용하여 학습하였음*`
+                                );
+                            })()}
                         </div>
                     </div>
                 </section>
@@ -140,7 +183,11 @@ export default function ResultDetail() {
                     <h2 className="text-[22px] font-bold text-gray-900">종합분석</h2>
                     <div className="mt-0.5 rounded-xl bg-gray-50 p-4">
                         <div className="p-2 text-sm text-gray-700 min-h-[120px]">
-                            {data.summary || "종합 분석 내용 입력 예정"}
+                            {/* 간단 합성: 하나라도 경고면 경고 */}
+                            {(() => {
+                                const warn = [data.face?.result, data.arm?.result, data.speech?.result].some(v => v === "경고" || v === "주의");
+                                return warn ? "경고 소견이 있습니다. 가까운 뇌졸중 센터에 문의하시기 바랍니다." : "현재 검사에서는 뚜렷한 이상 소견이 없습니다.";
+                            })()}
                         </div>
                     </div>
                 </section>

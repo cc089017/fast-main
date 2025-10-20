@@ -18,7 +18,7 @@ S = 5               # 슬라이스 개수
 N_MFCC = 13         # MFCC 개수
 
 # 모델 경로 수정
-MODEL_PATH = "assets/models/S5_voiced~10s_sr16000_cal_20250918_serve4x"
+MODEL_PATH = "back-end/app/assets/models/S5_voiced~10s_sr16000_cal_20250918_serve4x"
 
 def load_audio_16k(wav_or_bytes, filename=None):
     """
@@ -99,12 +99,27 @@ def _merge_voiced_by_runs(vflag: np.ndarray, hop_length: int, frame_length: int,
 # === 교체: voiced_concat 개선 버전 ===
 def voiced_concat(y, sr=16000, hop_length=256, frame_length=1024):
     """
-    개선된 VAD:
-    1) pyin으로 유성 프레임 검출
-    2) 연속 구간으로 병합하여 구멍/중복 최소화
-    3) 실패 시 energy split fallback
+    VAD 모드 선택 가능:
+    - SPEECH_VAD_MODE=pyin (기본): pyin 기반 + 실패 시 energy fallback
+    - SPEECH_VAD_MODE=energy: energy split만 사용 (학습 전처리와 일치 필요 시 권장)
     """
-    print(f"[DEBUG] voiced_concat: input length={len(y)}")
+    import os
+    vad_mode = (os.environ.get("SPEECH_VAD_MODE", "pyin") or "pyin").lower()
+    print(f"[DEBUG] voiced_concat: input length={len(y)}, vad_mode={vad_mode}")
+
+    def _energy_concat():
+        intervals = librosa.effects.split(y, top_db=25, frame_length=frame_length, hop_length=hop_length)
+        if intervals.size:
+            result = np.concatenate([y[s:e] for s, e in intervals]).astype(np.float32)
+            print(f"[DEBUG] voiced_concat energy: intervals={len(intervals)}, output length={len(result)}")
+            return result
+        print("[DEBUG] voiced_concat energy: no voiced segments found")
+        return np.zeros(0, dtype=np.float32)
+
+    if vad_mode == "energy":
+        return _energy_concat()
+
+    # default: pyin + fallback
     f0, vflag, vprob = librosa.pyin(
         y, fmin=librosa.note_to_hz("C2"), fmax=librosa.note_to_hz("C7"),
         sr=sr, frame_length=frame_length, hop_length=hop_length, center=False
@@ -116,17 +131,8 @@ def voiced_concat(y, sr=16000, hop_length=256, frame_length=1024):
             result = np.concatenate(parts).astype(np.float32)
             print(f"[DEBUG] voiced_concat pyin-merged: runs={len(runs)}, output length={len(result)}")
             return result
-
-    # pyin 실패 시 energy 기반 fallback
     print("[DEBUG] pyin failed or no valid runs, using energy-based fallback")
-    intervals = librosa.effects.split(y, top_db=25, frame_length=frame_length, hop_length=hop_length)
-    if intervals.size:
-        result = np.concatenate([y[s:e] for s, e in intervals]).astype(np.float32)
-        print(f"[DEBUG] voiced_concat fallback: intervals={len(intervals)}, output length={len(result)}")
-        return result
-
-    print("[DEBUG] voiced_concat: no voiced segments found")
-    return np.zeros(0, dtype=np.float32)
+    return _energy_concat()
 
 # === 추가: 최에너지 윈도우 선택 ===
 def _best_energy_window(yv: np.ndarray, target_samples: int, sr: int = 16000):
@@ -161,8 +167,11 @@ def trim_voiced_to_target(yv, target_duration_s=10.0, sr=16000):
         return np.array([], dtype=np.float32)
     target_samples = int(target_duration_s * sr)
     if len(yv) <= target_samples:
-        print(f"[DEBUG] Audio shorter than target, returning as-is: {len(yv)} samples")
-        return yv
+        # 길이가 부족하면 타일링으로 정확히 target 길이를 맞춘다 (학습 입력 길이와 일치)
+        reps = int(np.ceil(target_samples / max(1, len(yv))))
+        yv_ext = np.tile(yv, reps)[:target_samples].astype(np.float32)
+        print(f"[DEBUG] Audio shorter than target, tiled to {len(yv_ext)} samples (reps={reps})")
+        return yv_ext
     result = _best_energy_window(yv, target_samples, sr=sr)
     print(f"[DEBUG] Trimmed(best-energy) to: {len(result)} samples")
     return result
