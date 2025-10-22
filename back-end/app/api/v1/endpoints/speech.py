@@ -70,9 +70,9 @@ def _resolve_model_dir():
     # 프로젝트 루트 추정 (endpoints -> v1 -> api -> app -> back-end -> ROOT)
     root = os.path.abspath(os.path.join(here, "..", "..", "..", "..", ".."))
     candidates = [
-        os.path.join(root, "assets", "models", "S5_voiced~10s_sr16000_cal_20250918_serve4x"),
-        os.path.join(root, "back-end","app", "assets", "models", "S5_voiced~10s_sr16000_cal_20250918_serve4x"),
-        os.path.join("assets", "models", "S5_voiced~10s_sr16000_cal_20250918_serve4x"),
+        os.path.join(root, "assets", "models", "speech"),
+        os.path.join(root, "back-end","app", "assets", "models", "speech"),
+        os.path.join("assets", "models", "speech"),
     ]
     for p in candidates:
         if os.path.exists(p):

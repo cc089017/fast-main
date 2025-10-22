@@ -3,6 +3,18 @@ import { postArmPredict } from "@/api/arm";
 import { useNavigate } from "react-router-dom";
 
 export default function ArmMeasure() {
+  // ====== 픽셀 고정 레이아웃 상수 ======
+  const VIDEO_W = 870;
+  const VIDEO_H = 450;
+
+  // 박스 픽셀 고정 (좌/우 동일 크기)
+  const BOX_W = 250;
+  const BOX_H = 320;
+
+  // 박스 위치(비디오 좌측상단 기준 픽셀 고정)
+  const LEFT_BOX = { x: 80, y: 110 };
+  const RIGHT_BOX = { x: VIDEO_W - 80 - BOX_W, y: 110 };
+
   const videoRef = useRef(null);
   const captureCanvasRef = useRef(null);
   const leftBoxRef = useRef(null);
@@ -17,8 +29,6 @@ export default function ArmMeasure() {
 
   const navigate = useNavigate();
 
-  // 안내 멘트 상태
-  // idle → hold(3초 유지) → running(검사 진행) → done(종료)
   const [status, setStatus] = useState("idle");
   const statusText = {
     idle: "손이 하늘로 향하게 한채로 박스안에 손이 보이게 넣어주세요",
@@ -39,13 +49,13 @@ export default function ArmMeasure() {
       v.addEventListener("loadeddata", onReady);
     });
 
-  // 프레임 캡처(화면과 동일하게 좌우 반전)
+  // 화면과 동일하게 좌우 반전하여 캡처
   const captureFrame = () =>
     new Promise((resolve, reject) => {
       const v = videoRef.current;
       const c = captureCanvasRef.current;
-      const w = v?.videoWidth || 1280;
-      const h = v?.videoHeight || 720;
+      const w = v?.videoWidth || VIDEO_W;
+      const h = v?.videoHeight || VIDEO_H;
       c.width = w;
       c.height = h;
       const ctx = c.getContext("2d");
@@ -57,7 +67,6 @@ export default function ArmMeasure() {
       c.toBlob((b) => (b ? resolve(b) : reject(new Error("캡처 실패"))), "image/png");
     });
 
-  // 2.5s → 10.5s 측정 루틴
   const run = async () => {
     if (startedRef.current) return;
     startedRef.current = true;
@@ -70,7 +79,7 @@ export default function ArmMeasure() {
       await new Promise((r) => setTimeout(r, 8000));
       const b105 = await captureFrame();
 
-      await postArmPredict(b025, b105); // 서버 업로드(백엔드가 DB 저장)
+      await postArmPredict(b025, b105);
 
       setStatus("done");
       setTimeout(() => navigate("/test/speech", { replace: true }), 1000);
@@ -79,22 +88,23 @@ export default function ArmMeasure() {
       alert(msg);
       setStatus("idle");
     } finally {
-      cooldownRef.current = Date.now() + 3000; // 3초 쿨다운
+      cooldownRef.current = Date.now() + 3000;
       startedRef.current = false;
       guideStartRef.current = null;
     }
   };
 
-  // Hands 결과 처리 → 양손이 각 박스에 3초 유지되면 run()
+  // Hands 결과 처리: 고정 크기/좌표로 판정
   const onResults = (results) => {
     const video = videoRef.current;
     const leftBox = leftBoxRef.current;
     const rightBox = rightBoxRef.current;
     if (!video || !leftBox || !rightBox) return;
 
+    // 비디오의 화면 내 위치(고정 픽셀로 잡았지만, 센터 정렬로 인한 오프셋 고려)
     const videoRect = video.getBoundingClientRect();
-    const leftRect = leftBox.getBoundingClientRect();
-    const rightRect = rightBox.getBoundingClientRect();
+    const baseLeft = videoRect.left;
+    const baseTop = videoRect.top;
 
     let inLeft = false;
     let inRight = false;
@@ -103,12 +113,26 @@ export default function ArmMeasure() {
     lmSets.forEach((lm) => {
       const tip = lm?.[12]; // middle finger tip
       if (!tip) return;
-      const x = videoRect.left + tip.x * videoRect.width;
-      const y = videoRect.top + tip.y * videoRect.height;
-      if (x >= leftRect.left && x <= leftRect.right && y >= leftRect.top && y <= leftRect.bottom)
-        inLeft = true;
-      if (x >= rightRect.left && x <= rightRect.right && y >= rightRect.top && y <= rightRect.bottom)
-        inRight = true;
+
+      // MediaPipe 좌표(0~1)를 비디오 픽셀 좌표로 (표시 크기 고정)
+      const px = baseLeft + tip.x * VIDEO_W;
+      const py = baseTop + tip.y * VIDEO_H;
+
+      const L = {
+        left: baseLeft + LEFT_BOX.x,
+        right: baseLeft + LEFT_BOX.x + BOX_W,
+        top: baseTop + LEFT_BOX.y,
+        bottom: baseTop + LEFT_BOX.y + BOX_H,
+      };
+      const R = {
+        left: baseLeft + RIGHT_BOX.x,
+        right: baseLeft + RIGHT_BOX.x + BOX_W,
+        top: baseTop + RIGHT_BOX.y,
+        bottom: baseTop + RIGHT_BOX.y + BOX_H,
+      };
+
+      if (px >= L.left && px <= L.right && py >= L.top && py <= L.bottom) inLeft = true;
+      if (px >= R.left && px <= R.right && py >= R.top && py <= R.bottom) inRight = true;
     });
 
     const bothInside = inLeft && inRight;
@@ -196,18 +220,20 @@ export default function ArmMeasure() {
       const tracks = videoRef.current?.srcObject?.getTracks?.();
       tracks?.forEach((t) => t.stop());
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // eslint-disable-line
 
   return (
-    <div className="w-screen h-screen flex items-center justify-center bg-white relative overflow-hidden">
-      <div className="w-[133vh] h-[133vh] rounded-full border-[7vw] border-[#f6f6f6] shadow-xl overflow-hidden flex items-center justify-center z-0 relative">
+      <div className="w-screen h-screen flex items-center justify-center bg-white relative overflow-hidden">
+      {/* ✅ 겉 원: 원래 코드 유지 */}
+        <div className="w-[133vh] h-[133vh] rounded-full border-[7vw] border-[#f6f6f6] shadow-xl overflow-hidden flex items-center justify-center z-0 relative">
+          {/* 🔒 안쪽 카메라: 픽셀 고정 */}
+          
+        {/* 카메라 고정 박스 */}
         <div
           style={{
             position: "relative",
-            width: "100%",
-            maxWidth: 850,
-            aspectRatio: "16/9",
+            width: VIDEO_W,
+            height: VIDEO_H,
             borderRadius: 12,
             overflow: "hidden",
           }}
@@ -218,25 +244,25 @@ export default function ArmMeasure() {
             playsInline
             muted
             style={{
-              width: "100%",
-              height: "100%",
+              width: VIDEO_W,
+              height: VIDEO_H,
               objectFit: "cover",
               transform: "scaleX(-1)",
+              display: "block",
             }}
           />
 
-          {/* 중앙 상단 초록 멘트 */}
+          {/* 중앙 상단 안내 멘트 (고정 px) */}
           <div
             style={{
               position: "absolute",
               top: 12,
-              left: "50%",
-              transform: "translateX(-50%)",
-              width: "90%",
+              left: 0,
+              width: VIDEO_W,
               textAlign: "center",
               fontSize: 20,
               fontWeight: 800,
-              color: "#22c55e",                 // 초록 글씨
+              color: "#22c55e",
               textShadow: "0 1px 2px rgba(0,0,0,0.35)",
               pointerEvents: "none",
               userSelect: "none",
@@ -245,16 +271,16 @@ export default function ArmMeasure() {
             {statusText[status]}
           </div>
 
-          {/* 좌/우 가이드 박스(검정 테두리) */}
+          {/* 좌/우 가이드 박스(픽셀 고정) */}
           <div
             id="left-box"
             ref={leftBoxRef}
             style={{
               position: "absolute",
-              left: "8%",
-              top: "20%",
-              width: "26%",
-              height: "60%",
+              left: LEFT_BOX.x,
+              top: LEFT_BOX.y,
+              width: BOX_W,
+              height: BOX_H,
               border: "3px solid #000",
               borderRadius: 12,
               boxShadow: "0 0 12px rgba(0,0,0,0.5) inset",
@@ -265,10 +291,10 @@ export default function ArmMeasure() {
             ref={rightBoxRef}
             style={{
               position: "absolute",
-              right: "8%",
-              top: "20%",
-              width: "26%",
-              height: "60%",
+              left: RIGHT_BOX.x,
+              top: RIGHT_BOX.y,
+              width: BOX_W,
+              height: BOX_H,
               border: "3px solid #000",
               borderRadius: 12,
               boxShadow: "0 0 12px rgba(0,0,0,0.5) inset",

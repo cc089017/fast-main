@@ -18,7 +18,7 @@ def voiced_slices_and_feats(yv, sr, meta):
     
 def load_dtw_scale():
     """DTW 스케일 로드"""
-    scale_path = "backend/app/assets/models/S5_voiced~10s_sr16000_cal_20250918_serve4x/dtw_scale.json"
+    scale_path = "backend/app/assets/models/speech/dtw_scale.json"
     if os.path.exists(scale_path):
         with open(scale_path, 'r') as f:
             return json.load(f).get("k", 1.0)
