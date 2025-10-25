@@ -10,55 +10,65 @@ def short_hash(path):
         return hashlib.sha1(f.read()).hexdigest()[:8]
 
 def load_artifacts(model_dir):
-    """모델 아티팩트들을 로드하는 함수"""
-    
+    """모델 아티팩트들을 로드하는 함수
+    - dtw_refs.pkl이 없을 경우 Graceful Fallback: refs = [] 로 대체
+    """
+
     # 모델 파일들의 경로 설정
     pipe_path = os.path.join(model_dir, "rf_pipe.joblib")
     xcols_path = os.path.join(model_dir, "xcols.json")
     thresholds_path = os.path.join(model_dir, "thresholds.json")
     dtw_refs_path = os.path.join(model_dir, "dtw_refs.pkl")
     meta_path = os.path.join(model_dir, "meta.json")
-    
+
     # 파일 존재 여부 확인
     if not os.path.exists(pipe_path):
         raise FileNotFoundError(f"모델 파일을 찾을 수 없습니다: {pipe_path}")
-    
+
     # 파일들 로드
     pipe = joblib.load(pipe_path)
-    
+
     try:
         with open(xcols_path, 'r', encoding='utf-8') as f:
             xcols = json.load(f)
     except UnicodeDecodeError:
         with open(xcols_path, 'r', encoding='cp949') as f:
             xcols = json.load(f)
-    
+
     try:
         with open(thresholds_path, 'r', encoding='utf-8') as f:
             thresholds = json.load(f)
-            theta = thresholds.get("fusion_threshold", 0.5)
+            theta = thresholds.get("fusion_threshold", thresholds.get("threshold", 0.5))
     except UnicodeDecodeError:
         with open(thresholds_path, 'r', encoding='cp949') as f:
             thresholds = json.load(f)
-            theta = thresholds.get("fusion_threshold", 0.5)
-    
-    with open(dtw_refs_path, 'rb') as f:
-        refs = pickle.load(f)
-    
+            theta = thresholds.get("fusion_threshold", thresholds.get("threshold", 0.5))
+
+    # dtw_refs.pkl: 선택 로드 (없으면 빈 리스트로 대체)
+    refs = []
+    if os.path.exists(dtw_refs_path):
+        try:
+            with open(dtw_refs_path, 'rb') as f:
+                refs = pickle.load(f)
+        except Exception as e:
+            print(f"[WARNING] dtw_refs.pkl 로드 실패: {e}. 빈 참조로 대체합니다.")
+    else:
+        print(f"[WARNING] dtw_refs.pkl이 존재하지 않습니다: {dtw_refs_path}. 빈 참조로 대체합니다.")
+
     try:
         with open(meta_path, 'r', encoding='utf-8') as f:
             meta = json.load(f)
     except UnicodeDecodeError:
         with open(meta_path, 'r', encoding='cp949') as f:
             meta = json.load(f)
-    
+
     print(f"[Speech] Artifacts loaded from {model_dir}")
     print(f"  rf_pipe.joblib: {hash(str(pipe)) % (16**8):08x}")
     print(f"  xcols.json: {hash(str(xcols)) % (16**8):08x}")
     print(f"  thresholds.json: {hash(str(thresholds)) % (16**8):08x}")
-    print(f"  dtw_refs.pkl: {hash(str(refs)) % (16**8):08x}")
+    print(f"  dtw_refs.pkl: {'present' if refs else 'MISSING'}")
     print(f"  meta.json: {hash(str(meta)) % (16**8):08x}")
-    
+
     return pipe, xcols, theta, refs, meta
 
 # def download_model_if_needed():

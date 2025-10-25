@@ -1,8 +1,6 @@
-version: '3.8'
 services:
   mysql:
     image: mysql:8.0
-    container_name: fast-mysql
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: rootpw

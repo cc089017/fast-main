@@ -17,7 +17,7 @@ SR = 16000          # 샘플링 레이트
 S = 5               # 슬라이스 개수
 N_MFCC = 13         # MFCC 개수
 
-# 모델 경로 수정
+# 기본 모델 경로(함수 인자 우선, 미지정 시 폴백)
 MODEL_PATH = "back-end/app/assets/models/speech"
 
 def load_audio_16k(wav_or_bytes, filename=None):
@@ -105,6 +105,15 @@ def voiced_concat(y, sr=16000, hop_length=256, frame_length=1024):
     """
     import os
     vad_mode = (os.environ.get("SPEECH_VAD_MODE", "pyin") or "pyin").lower()
+    # 학습과 동일 프레임/홉을 맞추기 위한 환경변수 (없으면 기본값 유지)
+    try:
+        env_frame = int(os.environ.get("SPEECH_VAD_FRAME", str(frame_length)))
+        env_hop = int(os.environ.get("SPEECH_VAD_HOP", str(hop_length)))
+        if env_frame > 0 and env_hop > 0:
+            frame_length = env_frame
+            hop_length = env_hop
+    except Exception:
+        pass
     print(f"[DEBUG] voiced_concat: input length={len(y)}, vad_mode={vad_mode}")
 
     def _energy_concat():
@@ -201,15 +210,22 @@ def dtw_distance_train_like(M1, M2):
     dist, path = fastdtw(s1, s2, dist=euclidean)
     return float(dist) / max(1, len(path))
 
-def dtw_slice_means(slice_mfcc_list: list, refs: list, model_path=MODEL_PATH, scale_mode: str = "auto") -> list:
+def dtw_slice_means(slice_mfcc_list: list, refs: list | None, model_path=MODEL_PATH, scale_mode: str = "auto", normal_ref: float = 4.5) -> list:
     """
     각 슬라이스별 참조들과 DTW 평균 계산.
+    - refs가 비어있거나(None/[]) 없는 경우: 정상 기준값(normal_ref)으로 대체하여 서비스 지속
     scale_mode:
       - "auto": 원시 DTW 중앙값이 높을 때(k 필요)만 k 적용
       - "always": 항상 k 적용
       - "never": k 미적용
     """
     S = len(slice_mfcc_list)
+
+    # Graceful fallback: 참조가 없으면 정상 평균값으로 채움
+    if not refs:
+        print(f"[WARNING] DTW refs가 비어 있습니다. normal_ref={normal_ref}로 대체합니다.")
+        return [float(normal_ref) for _ in range(S)]
+
     raw_means = []
     for i in range(S):
         dists = []

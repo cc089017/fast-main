@@ -2,6 +2,7 @@
 export async function sendSpeechAudio(audioBlob) {
   const formData = new FormData();
   formData.append('file', audioBlob, 'speech.webm');
+  formData.append('debug', 'true');
   const res = await fetch('/api/v1/speech/predict', {
     method: 'POST',
     body: formData,
@@ -13,6 +14,7 @@ export async function sendSpeechAudio(audioBlob) {
 export async function getSpeechPlot(audioBlob) {
   const formData = new FormData();
   formData.append('file', audioBlob, 'speech.webm');
+  formData.append('debug', 'true');
   const res = await fetch('/api/v1/speech/predict_plot', {
     method: 'POST',
     body: formData,
@@ -32,6 +34,11 @@ export async function saveSpeechResult(data) {
 }
 
 export async function predictSpeech(formData) {
+  try {
+    formData.append('debug', 'true');
+  } catch {
+    // ignore if not FormData
+  }
   const res = await fetch('/api/v1/speech/predict', {
     method: 'POST',
     body: formData,

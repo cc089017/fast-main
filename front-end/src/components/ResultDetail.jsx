@@ -223,15 +223,20 @@ export default function ResultDetail() {
                             {(() => {
                                 const risk = data.speech?.risk;
                                 const th = data.speech?.threshold;
-                                const label = data.speech?.result || "-";
+                                const userName = data.user?.name || "사용자";
                                 // 간단한 개인화 문구 (백엔드 저장값이 있으면 우선)
                                 if (data.speech?.personalized_text) return data.speech.personalized_text;
-                                return (
-                                    `검사결과 위험도 ${typeof risk === 'number' ? risk.toFixed(3) : risk}로 (${label}) 결과가 나왔습니다. ` +
-                                    `비정상 음성 데이터 3972명 중 ~퍼센트는 위험도가 ${typeof th === 'number' ? th.toFixed(3) : th}보다 높게 나왔으며 ` +
-                                    `정상 음성 데이터 4240개의 평균 dtw 거리와 ~만큼의 차이가 있습니다. 재검 혹은 관리가 필요합니다. ` +
-                                    `*8000여개의 데이터를 사용하여 학습하였음*`
-                                );
+                                const r = (typeof risk === 'number') ? risk : Number.NaN;
+                                const t = (typeof th === 'number') ? th : Number.NaN;
+                                const comp = (isFinite(r) && isFinite(t)) ? (r < t ? '미만' : '이상') : '';
+                                const exist = (isFinite(r) && isFinite(t)) ? (r < t ? '없' : '있') : '';
+                                const rStr = isFinite(r) ? r.toFixed(2) : String(risk);
+                                const tStr = isFinite(t) ? t.toFixed(2) : String(th);
+                                return [
+                                    '언어 장애 평가는 MFCC(발음의 정확도)와 정상 참조 음성을 DTW(정상 음성과의 차이)로 비교하여 정상 패턴과의 유사도를 구하고 ZCR(발성의 불안정성)과 RMS(에너지 일관성)을 함께 고려해 종합 위험도를 산출합니다.',
+                                    '',
+                                    `${userName}님의 위험도는 ${rStr}로 모델 기준치 ${tStr} ${comp}으로 위험이 ${exist}다고 판단됩니다.`
+                                ].join('\n');
                             })()}
                         </div>
                     </div>
