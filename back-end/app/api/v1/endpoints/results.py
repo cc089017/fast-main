@@ -17,6 +17,7 @@ from app.models.user import User
 router = APIRouter(tags=["results"])
 
 
+    
 def _to_date_str(dt: datetime) -> str:
     if not dt:
         return ""
@@ -37,22 +38,33 @@ def _face_to_label(row: Face) -> str:
     # 저장 형태가 문장일 수 있어 부분 매칭
     if "비정상" in txt or "abnormal" in txt.lower():
         return "경고"
+        
     return "정상"
-
+def _normalize_arm_label(raw) -> str | None:
+    if raw is None:
+        return None
+    s = str(raw).strip().lower()
+    if s in {"abnormal", "detected", "positive", "1", "true"}:
+        return "abnormal"
+    if s in {"normal", "negative", "0", "false"}:
+        return "normal"
+    return None
 
 def _arm_to_label(row: Arm) -> str:
+    """
+    프론트 뱃지용 한글 요약:
+      - '경고' (비정상)
+      - '정상'
+      - '미실시' (레코드 없음/불명)
+    """
     if not row:
         return "미실시"
-    # label 1: 경고, 0: 정상 (기본 가정)
-    try:
-        return "경고" if int(row.label) == 1 else "정상"
-    except Exception:
-        # 라벨이 문자열이거나 None인 경우
-        if str(getattr(row, "label", "")).strip() in ("1", "abnormal", "경고"):
-            return "경고"
-        if getattr(row, "label", None) is None:
-            return "미실시"
+    norm = _normalize_arm_label(getattr(row, "label", None))
+    if norm == "abnormal":
+        return "경고"
+    if norm == "normal":
         return "정상"
+    return "미실시"
 
 
 @router.get("/summary")
