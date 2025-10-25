@@ -2,6 +2,59 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import http from "@/lib/http";
+// --- Arm 소견 문자열 생성 (안정 버전) ---
+// --- Arm 소견 문자열 생성: confidence만 사용 ---
+function buildArmNote(data) {
+  try {
+    const a = data && data.arm ? data.arm : null;
+    if (!a) return "본 검사는 실시되지 않았습니다.";
+
+    const userName =
+      (data && data.user && data.user.name) ? data.user.name : "사용자";
+
+    // 라벨 정규화
+    const rawLabel = (a.label == null ? "" : String(a.label)).toLowerCase();
+    const isNormal = ["normal", "negative", "0", "false"].includes(rawLabel);
+    const isAbn    = ["abnormal", "detected", "positive", "1", "true"].includes(rawLabel);
+
+    // confidence만 사용 (0~1이면 %로 변환, 그 외 값은 %로 가정)
+    let conf = (typeof a.confidence === "number") ? a.confidence : null;
+    let confPctStr = null;
+    if (conf != null) {
+      const pct = (conf <= 1 && conf >= 0) ? conf * 100 : conf; // 0~1 → %
+      confPctStr = pct.toFixed(1) + "%";
+    }
+
+    const lines = [];
+    // 1) 헤더/결과
+    lines.push(
+      `${userName}님의 팔 힘 약화 측정결과는`
+    );
+    lines.push ( `${isAbn ? "비정상" : (isNormal ? "정상" : "미실시")}입니다.`);
+    // 2) 결과 코멘트
+    lines.push(
+      isAbn
+        ? "(기준치를 초과한 팔 힘 약화가 확인되었습니다. 즉시 가까운 뇌졸중 센터에 방문하세요.)"
+        : "(현재 측정으로 팔 힘 약화 징후는 확인되지 않았습니다.)"
+    );
+
+    // 3) 설명
+    lines.push("팔 힘 약화는 팔 하강 측정과 손목 회전 측정을 종합 분석합니다.심한 피로, 근육통, 어깨 질환, 팔이 화면 밖으로 나가는 경우는 진단 결과에 영향을 줄 수 있습니다.");
+
+    // 4) 정량 문구: confidence만 표시
+    if (confPctStr) {
+      lines.push(`${userName}님의 신뢰도는 ${confPctStr} 입니다.`);
+    } else {
+      lines.push("신뢰도 정보가 없어 정량적 해석을 생략합니다.");
+    }
+
+    return lines.join("\n");
+  } catch {
+    return "소견 생성 중 오류가 발생했습니다.";
+  }
+}
+
+
 
 export default function ResultDetail() {
     const { id } = useParams();
@@ -23,6 +76,8 @@ export default function ResultDetail() {
         })();
         return () => { alive = false; };
     }, [id]);
+
+    
 
     const statusColor = (s) => (s === "경고" || s === "주의" ? "text-red-500" : "text-blue-600");
 
@@ -99,39 +154,43 @@ export default function ResultDetail() {
                         </div>
                     </div>
                 </section>
-
                 {/* Arm */}
                 <section className="mb-4">
-                    <div className="flex items-baseline gap-2">
-                        <h2 className="text-[20px] font-semibold text-gray-800">Arm 분석 |</h2>
-                        <span className={`text-[21px] font-bold ${statusColor(data.arm?.result)}`}> {data.arm?.result || "미실시"}</span>
+                <div className="flex items-baseline gap-2">
+                    <h2 className="text-[20px] font-semibold text-gray-800">Arm 분석 |</h2>
+                    <span className={`text-[21px] font-bold ${statusColor(data.arm?.result)}`}>
+                    {data.arm?.result || "미실시"}
+                    </span>
+                </div>
+
+                <div className="mt-0.5 grid grid-cols-[350px_1fr] gap-6 rounded-xl bg-gray-100 p-4">
+                    <div className="w-[330px] rounded-xl border border-gray-300 bg-white overflow-hidden">
+                    <div className="grid grid-cols-2 gap-2 p-2">
+                        <div className="aspect-square rounded border border-gray-300 bg-white overflow-hidden flex items-center justify-center">
+                        {data.arm?.start_image_url ? (
+                            <img src={data.arm.start_image_url} alt="Arm 시작" className="w-full h-full object-contain" />
+                        ) : (
+                            <div className="text-gray-400 text-xs">시작 이미지 없음</div>
+                        )}
+                        </div>
+                        <div className="aspect-square rounded border border-gray-300 bg-white overflow-hidden flex items-center justify-center">
+                        {data.arm?.end_image_url ? (
+                            <img src={data.arm.end_image_url} alt="Arm 종료" className="w-full h-full object-contain" />
+                        ) : (
+                            <div className="text-gray-400 text-xs">종료 이미지 없음</div>
+                        )}
+                        </div>
+                    </div>
                     </div>
 
-                    {/* 가운데 정렬 */}
-                    <div className="mt-0.5 grid grid-cols-[350px_1fr] gap-6 rounded-xl bg-gray-100 p-4">
-                        <div className="w-[330px] rounded-xl border border-gray-300 bg-white overflow-hidden">
-                            <div className="grid grid-cols-2 gap-2 p-2">
-                                <div className="aspect-square rounded border border-gray-300 bg-white overflow-hidden flex items-center justify-center">
-                                    {data.arm?.start_image_url ? (
-                                        <img src={data.arm.start_image_url} alt="Arm 시작" className="w-full h-full object-contain" />
-                                    ) : (
-                                        <div className="text-gray-400 text-xs">시작 이미지 없음</div>
-                                    )}
-                                </div>
-                                <div className="aspect-square rounded border border-gray-300 bg-white overflow-hidden flex items-center justify-center">
-                                    {data.arm?.end_image_url ? (
-                                        <img src={data.arm.end_image_url} alt="Arm 종료" className="w-full h-full object-contain" />
-                                    ) : (
-                                        <div className="text-gray-400 text-xs">종료 이미지 없음</div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                        <div className="p-2 text-sm text-black">
-                            {data.arm?.label ? `label=${data.arm.label}, confidence=${data.arm.confidence ?? "-"}` : "-"}
-                        </div>
+                    <div className="p-2 text-sm text-black whitespace-pre-wrap">
+                    {buildArmNote(data)}
                     </div>
+                </div>
                 </section>
+
+               
+
 
                 {/* Speech */}
                 <section className="mb-4">
