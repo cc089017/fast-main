@@ -17,3 +17,4 @@ dist/
 Thumbs.db
 
 back-end/app/assets/models/
+back-end/app/static/

@@ -27,10 +27,8 @@ function buildArmNote(data) {
 
     const lines = [];
     // 1) 헤더/결과
-    lines.push(
-      `${userName}님의 팔 힘 약화 측정결과는`
-    );
-    lines.push ( `${isAbn ? "비정상" : (isNormal ? "정상" : "미실시")}입니다.`);
+    lines.push(`${userName}님의 팔 힘 측정결과는 ${isAbn ? "비정상" : (isNormal ? "정상" : "미실시")}입니다.`);
+
     // 2) 결과 코멘트
     lines.push(
       isAbn
@@ -153,41 +151,56 @@ export default function ResultDetail() {
                             {data.face?.result_text || "-"}
                         </div>
                     </div>
-                </section>
+            </section>
                 {/* Arm */}
                 <section className="mb-4">
-                <div className="flex items-baseline gap-2">
-                    <h2 className="text-[20px] font-semibold text-gray-800">Arm 분석 |</h2>
-                    <span className={`text-[21px] font-bold ${statusColor(data.arm?.result)}`}>
-                    {data.arm?.result || "미실시"}
-                    </span>
-                </div>
-
-                <div className="mt-0.5 grid grid-cols-[350px_1fr] gap-6 rounded-xl bg-gray-100 p-4">
-                    <div className="w-[330px] rounded-xl border border-gray-300 bg-white overflow-hidden">
-                    <div className="grid grid-cols-2 gap-2 p-2">
-                        <div className="aspect-square rounded border border-gray-300 bg-white overflow-hidden flex items-center justify-center">
-                        {data.arm?.start_image_url ? (
-                            <img src={data.arm.start_image_url} alt="Arm 시작" className="w-full h-full object-contain" />
-                        ) : (
-                            <div className="text-gray-400 text-xs">시작 이미지 없음</div>
-                        )}
-                        </div>
-                        <div className="aspect-square rounded border border-gray-300 bg-white overflow-hidden flex items-center justify-center">
-                        {data.arm?.end_image_url ? (
-                            <img src={data.arm.end_image_url} alt="Arm 종료" className="w-full h-full object-contain" />
-                        ) : (
-                            <div className="text-gray-400 text-xs">종료 이미지 없음</div>
-                        )}
-                        </div>
+                    <div className="flex items-baseline gap-2">
+                        <h2 className="text-[20px] font-semibold text-gray-800">Arm 분석 |</h2>
+                        <span className={`text-[21px] font-bold ${statusColor(data.arm?.result)}`}>
+                        {data.arm?.result || "미실시"}
+                        </span>
                     </div>
+
+                                    {/* 유동 레이아웃: 모바일 1열, md 이상 2열 */}
+                    <div className="mt-0.5 grid grid-cols-1 md:grid-cols-2 gap-6 rounded-xl bg-gray-100 p-4">
+                        {/* 왼쪽: 시작/종료 이미지 2개(정사각 유지, 컨테이너 유동) */}
+                        <div className="w-full md:max-w-[clamp(240px,35vw,380px)] rounded-xl border border-gray-300 bg-white overflow-hidden mx-auto">
+                            <div className="grid grid-cols-2 gap-2 p-2">
+                                <div className="aspect-square rounded border border-gray-300 bg-white overflow-hidden relative">
+                                    {data.arm?.start_image_url ? (
+                                        <img
+                                        src={data.arm.start_image_url}
+                                        alt="Arm 시작"
+                                        className="absolute inset-0 w-full h-full object-contain"
+                                        />
+                                    ) : (
+                                        <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-xs">
+                                        시작 이미지 없음
+                                        </div>
+                                    )}
+                                </div>
+                                
+                            <div className="aspect-square rounded border border-gray-300 bg-white overflow-hidden relative">
+                                    {data.arm?.end_image_url ? (
+                                        <img
+                                        src={data.arm.end_image_url}
+                                        alt="Arm 종료"
+                                        className="absolute inset-0 w-full h-full object-contain"
+                                        />
+                                    ) : (
+                                        <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-xs">
+                                        종료 이미지 없음
+                                        </div>
+                                    )}
+                            </div>
+                        </div>
                     </div>
 
                     <div className="p-2 text-sm text-black whitespace-pre-wrap">
                     {buildArmNote(data)}
                     </div>
                 </div>
-                </section>
+            </section>
 
                
 
@@ -233,7 +246,7 @@ export default function ResultDetail() {
                                 const rStr = isFinite(r) ? r.toFixed(2) : String(risk);
                                 const tStr = isFinite(t) ? t.toFixed(2) : String(th);
                                 return [
-                                    '언어 장애 평가는 MFCC(발음의 정확도)와 정상 참조 음성을 DTW(정상 음성과의 차이)로 비교하여 정상 패턴과의 유사도를 구하고 ZCR(발성의 불안정성)과 RMS(에너지 일관성)을 함께 고려해 종합 위험도를 산출합니다.',
+                                    '언어 장애 평가는 발음의 정확도와 정상 음성과의 차이로 비교하여 정상 패턴과의 유사도를 구하고 발성의 불안정성과 에너지 일관성을 함께 고려해 종합 위험도를 산출합니다.',
                                     '',
                                     `${userName}님의 위험도는 ${rStr}로 모델 기준치 ${tStr} ${comp}으로 위험이 ${exist}다고 판단됩니다.`
                                 ].join('\n');

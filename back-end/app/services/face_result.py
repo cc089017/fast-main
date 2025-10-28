@@ -81,15 +81,18 @@ def _top_pair_feature(features: Dict[str, Any]) -> Optional[Tuple[str, float, Tu
 def compose_result_text(user_name_or_id: str, is_abnormal: bool, features: Optional[Dict[str, Any]] = None) -> str:
     """
     한국어 결과 문장 생성:
-      - 정상:  "{이름}님의 안면마비 측정 결과는 정상입니다."
-      - 비정상: "{이름}님의 안면마비 측정 결과는 비정상입니다.
-                그 이유는 {부위명} 부분이 비대칭 수치가 높게 측정되었습니다."
-        * 부위명: 가장 절대값이 큰 AI_x_/AI_y_/angle_ 피처의 점 쌍 → 부위로 변환
+      - 정상:  "{이름}님의 안면마비 측정 결과는 정상입니다.\n(현재 측정으로 안면 마비 징후는 확인되지 않았습니다.)"
+      - 비정상: 줄바꿈 3줄 구조
     """
     name = user_name_or_id or "사용자"
 
     if not is_abnormal:
-        return f"{name}님의 안면마비 측정 결과는 정상입니다."
+        return (
+            f"{name}님의 안면마비 측정 결과는 정상입니다.\n"
+            "(현재 측정으로 안면 마비 징후는 확인되지 않았습니다.)\n"
+            "안면마비는 입꼬리 높이, 눈-입 대칭성, 기울기 등의 얼굴 좌우 지표를 종합 분석하여 판단합니다.\n"
+            "고개 기울임, 표정 부족, 가림 요소(머리카락, 손 등), 측면 얼굴은 정확도에 영향을 줄 수 있습니다.\n"
+        )
 
     # 비정상 이유 구성
     part_text = None
@@ -99,6 +102,17 @@ def compose_result_text(user_name_or_id: str, is_abnormal: bool, features: Optio
         part_text = human_region_for_pair(a, b)
 
     if not part_text:
-        return f"{name}님의 안면마비 측정 결과는 비정상입니다. 그 이유는 특정 부위에서 비대칭 수치가 높게 측정되었습니다."
+        return (
+            f"{name}님의 안면마비 측정 결과는 비정상입니다.\n"
+            "(기준치를 초과한 안면 마비 수치가 확인되었습니다. 즉시 가까운 뇌졸중 센터에 방문하세요.)\n"
+            "특정 부위에서 비대칭 수치가 높게 측정되었습니다."
+        )
 
-    return f"{name}님의 안면마비 측정 결과는 비정상입니다. 그 이유는 {part_text} 부분이 비대칭 수치가 높게 측정되었습니다."
+    return (
+        f"{name}님의 안면마비 측정 결과는 비정상입니다.\n"
+        "(기준치를 초과한 안면 마비 수치가 확인되었습니다. 즉시 가까운 뇌졸중 센터에 방문하세요.)\n"
+        "안면마비는 입꼬리 높이, 눈-입 대칭성, 기울기 등의 얼굴 좌우 지표를 종합 분석하여 판단합니다.\n"
+        "고개 기울임, 표정 부족, 가림 요소(머리카락, 손 등), 측면 얼굴은 정확도에 영향을 줄 수 있습니다.\n"
+        f"{name}님의 {part_text} 부분이 비대칭 수치가 높게 측정되어 위험이 있다고 판단됩니다."
+    )
+
