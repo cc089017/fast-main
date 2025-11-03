@@ -67,10 +67,6 @@ export default function SpeechTestPage() {
   // 업로드 완료 결과 (기존 UI/흐름 유지)
   const handleDone = (data) => {
     setResult(data);
-    setTimeout(
-      () => resultRef.current?.scrollIntoView({ behavior: "smooth" }),
-      50
-    );
   };
   return (
     <div className="w-screen h-screen flex items-center justify-center bg-white relative overflow-hidden">
@@ -89,7 +85,7 @@ export default function SpeechTestPage() {
         <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center">
           <div className="mb-8 text-center">
             <h2 className="text-4xl font-bold mb-4 text-blue-700">음성 검사</h2>
-            <pre className="text-gray-800 text-[20px] font-sans font-normal whitespace-pre-wrap">
+            <pre className="text-gray-800 text-[25px] font-sans font-normal whitespace-pre-wrap">
               {promptText}
             </pre>
           </div>

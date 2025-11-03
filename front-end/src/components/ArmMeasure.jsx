@@ -8,12 +8,12 @@ export default function ArmMeasure() {
   const VIDEO_H = 450;
 
   // 박스 픽셀 고정 (좌/우 동일 크기)
-  const BOX_W = 180;
-  const BOX_H = 200;
+  const BOX_W = 250;
+  const BOX_H = 320;
 
   // 박스 위치(비디오 좌측상단 기준 픽셀 고정)
-  const LEFT_BOX = { x: 80, y: 190 };
-  const RIGHT_BOX = { x: VIDEO_W - 80 - BOX_W, y: 190 };
+  const LEFT_BOX = { x: 80, y: 110 };
+  const RIGHT_BOX = { x: VIDEO_W - 80 - BOX_W, y: 110 };
 
   const videoRef = useRef(null);
   const captureCanvasRef = useRef(null);
@@ -36,6 +36,23 @@ export default function ArmMeasure() {
     running: "검사 진행중",
     done: "검사가 종료되었습니다",
   };
+
+  // =========================
+  // 👇 추가: 디버그 HUD 상태/도우미
+  // =========================
+  const [log, setLog] = useState([]);
+  const [img025, setImg025] = useState(null);
+  const [img105, setImg105] = useState(null);
+  const [resp, setResp] = useState(null);
+  const b025UrlRef = useRef(null);
+  const b105UrlRef = useRef(null);
+
+  const pushLog = (m) =>
+    setLog((prev) => {
+      const next = [...prev, `[${new Date().toLocaleTimeString()}] ${m}`];
+      return next.length > 300 ? next.slice(-300) : next; // 최근 300줄만 유지
+    });
+  // =========================
 
   const waitVideoReady = () =>
     new Promise((resolve) => {
@@ -72,19 +89,39 @@ export default function ArmMeasure() {
     startedRef.current = true;
     setStatus("running");
 
+    // 👇 추가: 이전 썸네일/응답 초기화 + URL revoke
+    setResp(null);
+    setImg025(null);
+    setImg105(null);
+    if (b025UrlRef.current) { URL.revokeObjectURL(b025UrlRef.current); b025UrlRef.current = null; }
+    if (b105UrlRef.current) { URL.revokeObjectURL(b105UrlRef.current); b105UrlRef.current = null; }
+    pushLog("측정 시작");
+
     try {
+      pushLog("2.5초 대기…");
       await new Promise((r) => setTimeout(r, 2500));
       const b025 = await captureFrame();
+      b025UrlRef.current = URL.createObjectURL(b025);
+      setImg025(b025UrlRef.current);
+      pushLog("2.5s 캡처 완료");
 
+      pushLog("10.5초(추가 8초) 대기…");
       await new Promise((r) => setTimeout(r, 8000));
       const b105 = await captureFrame();
+      b105UrlRef.current = URL.createObjectURL(b105);
+      setImg105(b105UrlRef.current);
+      pushLog("10.5s 캡처 완료");
 
-      await postArmPredict(b025, b105);
+      pushLog("서버 전송…");
+      const data = await postArmPredict(b025, b105);
+      setResp(data);
+      pushLog("서버 응답 수신");
 
       setStatus("done");
       setTimeout(() => navigate("/test/speech", { replace: true }), 1000);
     } catch (e) {
       const msg = e?.response?.data?.detail || e?.message || String(e);
+      pushLog("오류: " + msg);
       alert(msg);
       setStatus("idle");
     } finally {
@@ -141,7 +178,9 @@ export default function ArmMeasure() {
       if (!guideStartRef.current) {
         guideStartRef.current = performance.now();
         setStatus("hold");
+        pushLog("양손 박스 안 감지 — 유지 시작");
       } else if (performance.now() - guideStartRef.current > 3000) {
+        pushLog("3초 유지 완료 — 자동 측정 시작");
         setStatus("running");
         run();
       }
@@ -209,8 +248,12 @@ export default function ArmMeasure() {
       });
       cam.start();
       cameraRef.current = cam;
+
+      pushLog("핸드 트래커 초기화 완료");
     })().catch((err) => {
-      alert("초기화 오류: " + (err?.response?.data?.detail || err?.message || String(err)));
+      const msg = err?.response?.data?.detail || err?.message || String(err);
+      pushLog("초기화 오류: " + msg);
+      alert("초기화 오류: " + msg);
     });
 
     return () => {
@@ -219,15 +262,16 @@ export default function ArmMeasure() {
       try { cameraRef.current?.stop?.(); } catch {}
       const tracks = videoRef.current?.srcObject?.getTracks?.();
       tracks?.forEach((t) => t.stop());
+      // 👇 추가: Object URL 정리
+      if (b025UrlRef.current) URL.revokeObjectURL(b025UrlRef.current);
+      if (b105UrlRef.current) URL.revokeObjectURL(b105UrlRef.current);
     };
   }, []); // eslint-disable-line
 
   return (
-      <div className="w-screen h-screen flex items-center justify-center bg-white relative overflow-hidden">
-      {/* ✅ 겉 원: 원래 코드 유지 */}
-        <div className="w-[133vh] h-[133vh] rounded-full border-[7vw] border-[#f6f6f6] shadow-xl overflow-hidden flex items-center justify-center z-0 relative">
-          {/* 🔒 안쪽 카메라: 픽셀 고정 */}
-          
+    <div className="w-screen h-screen flex items-center justify-center bg-white relative overflow-hidden">
+      {/* ✅ 겉 원 */}
+      <div className="w-[133vh] h-[133vh] rounded-full border-[7vw] border-[#f6f6f6] shadow-xl overflow-hidden flex items-center justify-center z-0 relative">
         {/* 카메라 고정 박스 */}
         <div
           style={{
@@ -252,7 +296,7 @@ export default function ArmMeasure() {
             }}
           />
 
-          {/* 중앙 상단 안내 멘트 (고정 px) */}
+          {/* 중앙 상단 안내 멘트 */}
           <div
             style={{
               position: "absolute",
@@ -271,7 +315,7 @@ export default function ArmMeasure() {
             {statusText[status]}
           </div>
 
-          {/* 좌/우 가이드 박스(픽셀 고정) */}
+          {/* 좌/우 가이드 박스 */}
           <div
             id="left-box"
             ref={leftBoxRef}
@@ -300,6 +344,69 @@ export default function ArmMeasure() {
               boxShadow: "0 0 12px rgba(0,0,0,0.5) inset",
             }}
           />
+        </div>
+      </div>
+
+      {/* 👇 추가: 우측 상단 디버그 HUD */}
+      <div
+        style={{
+          position: "absolute",
+          right: 32,
+          top: 32,
+          width: 400,
+          background: "#121833",
+          border: "1px solid #2a3566",
+          borderRadius: 12,
+          padding: 12,
+          zIndex: 10,
+        }}
+      >
+        <h2 style={{ marginTop: 0, color: "#cfe3ff", fontWeight: 700 }}>응답</h2>
+        <pre
+          style={{
+            margin: 0,
+            whiteSpace: "pre-wrap",
+            fontFamily: "ui-monospace,monospace",
+            color: "#cfe3ff",
+            maxHeight: 160,
+            overflow: "auto",
+          }}
+        >
+          {resp ? JSON.stringify(resp, null, 2) : "{ 아직 없음 }"}
+        </pre>
+
+        {(img025 || img105) && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 12,
+              marginTop: 12,
+            }}
+          >
+            <figure style={{ margin: 0 }}>
+              <figcaption style={{ color: "#cfe3ff", fontSize: 12 }}>2.5s 프레임</figcaption>
+              {img025 && <img src={img025} alt="2.5s" style={{ width: "100%", borderRadius: 8 }} />}
+            </figure>
+            <figure style={{ margin: 0 }}>
+              <figcaption style={{ color: "#cfe3ff", fontSize: 12 }}>10.5s 프레임</figcaption>
+              {img105 && <img src={img105} alt="10.5s" style={{ width: "100%", borderRadius: 8 }} />}
+            </figure>
+          </div>
+        )}
+
+        <div
+          style={{
+            marginTop: 10,
+            fontFamily: "ui-monospace,monospace",
+            fontSize: 13,
+            color: "#a9b4d4",
+            whiteSpace: "pre-wrap",
+            maxHeight: 180,
+            overflow: "auto",
+          }}
+        >
+          {log.join("\n") || "{ 로그 없음 }"}
         </div>
       </div>
 
