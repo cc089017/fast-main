@@ -11,15 +11,7 @@ from app.core.security import get_user_id_from_cookie
 router = APIRouter(tags=["arm"])
 
 # ★ 추가: ARM 라벨 정규화 (모델 라벨 → 'normal'/'abnormal')
-def _normalize_arm_label(raw) -> str | None:
-    if raw is None:
-        return None
-    s = str(raw).strip().lower()
-    if s in {"abnormal", "detected", "positive", "1", "true"}:
-        return "abnormal"
-    if s in {"normal", "negative", "0", "false"}:
-        return "normal"
-    return None
+
 
 @router.post("/predict")
 async def predict_arm_v1(
@@ -36,10 +28,9 @@ async def predict_arm_v1(
 
     # 2) 특징 추출/추론
     feats = extract_features_from_two_images(sb, eb) or {}
-    proba, raw_label = predict_proba_and_label(feats)
+    proba, label = predict_proba_and_label(feats)
 
     # 3) 라벨 정규화
-    norm_label = _normalize_arm_label(raw_label)
 
     # 4) DB 저장 (정규화 라벨로 저장 권장)
     row = create_arm(
@@ -49,20 +40,16 @@ async def predict_arm_v1(
         start_mime=start_file.content_type or "image/png",
         end_bytes=eb,
         end_mime=end_file.content_type or "image/png",
-        label=norm_label,  # ★ 핵심: 'normal' / 'abnormal' 로 저장
+        label=label,  # ★ 핵심: 'normal' / 'abnormal' 로 저장
         confidence=float(proba) if proba is not None else None,
-        features={
-            "version": "v1",
-            "raw_label": raw_label,  # 디버그 추적용(선택)
-            "proba": float(proba) if proba is not None else None,
-            "feats_len": len(feats) if hasattr(feats, "__len__") else None,
-        },
+        features={"version": "v1", "feats_len": len(feats or [])},
+    
     )
 
     # 5) 응답: 프론트가 바로 쓰게 URL 포함
     return JSONResponse({
         "id": row.arm_id,
-        "label": norm_label,  # ★ 프론트 표준 라벨
+        "label": label,  # ★ 프론트 표준 라벨
         "confidence": round(float(proba), 6) if proba is not None else None,
         "start_image_url": f"/api/v1/arm/{row.arm_id}/image/start",
         "end_image_url":   f"/api/v1/arm/{row.arm_id}/image/end",
