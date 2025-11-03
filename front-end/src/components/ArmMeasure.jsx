@@ -8,12 +8,12 @@ export default function ArmMeasure() {
   const VIDEO_H = 450;
 
   // 박스 픽셀 고정 (좌/우 동일 크기)
-  const BOX_W = 250;
-  const BOX_H = 320;
+  const BOX_W = 180;
+  const BOX_H = 200;
 
   // 박스 위치(비디오 좌측상단 기준 픽셀 고정)
-  const LEFT_BOX = { x: 80, y: 110 };
-  const RIGHT_BOX = { x: VIDEO_W - 80 - BOX_W, y: 110 };
+  const LEFT_BOX = { x: 80, y: 190 };
+  const RIGHT_BOX = { x: VIDEO_W - 80 - BOX_W, y: 190 };
 
   const videoRef = useRef(null);
   const captureCanvasRef = useRef(null);

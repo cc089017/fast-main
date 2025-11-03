@@ -20,7 +20,7 @@ export default function FaceSlide() {
                 />
 
                 {/* 검사 가이드 텍스트 */}
-                <div className="text-left text-3xl text-gray-800 ml-0 leading-relaxed">
+                <div className="text-left text-4xl text-gray-800 ml-0 leading-relaxed">
                     <p>1. 카메라 정면을 봐주세요.</p>
                     <p className="mt-4">2. <strong>'이~'</strong> 하며 웃는 얼굴을</p>
                     <p>&nbsp;&nbsp;&nbsp;5초 동안 유지해주세요.</p>
