@@ -28,5 +28,6 @@ matplotlib
 gdown
 pydub
 ffmpeg-python
+xgboost==3.0.2
 
 
